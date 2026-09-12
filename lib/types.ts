@@ -10,7 +10,6 @@
 export interface StationReading {
   timestamp: string; // ISO 8601, e.g. "2026-08-19T11:30:00Z"
 
-  // Three independent temperature sensors (redundancy for QA/fault detection)
   airTemp: number;
   bmpTemp: number;
   shtTemp: number;
@@ -21,8 +20,6 @@ export interface StationReading {
   maxTemp24h: number;
   minTemp24h: number;
 
-  // Two independent rain gauges, each reported per-minute, per-yesterday,
-  // and as a rolling total, plus an averaged figure across both gauges.
   minTips1: number;
   minRain1_mm: number;
   minTips2: number;
@@ -50,39 +47,42 @@ export interface Station {
   name: string;
   latitude: number;
   longitude: number;
-  /** The hardware doc's "coreid" — pairs a physical Particle Boron to this record. */
   particleDeviceId: string;
   status: "online" | "offline";
-  lastSeenAt: string | null; // ISO timestamp, null if it has never reported
+  lastSeenAt: string | null;
 }
 
 export type ReportFrequency = "daily" | "weekly" | "monthly" | "custom";
 export type ReportFormat = "csv" | "xls" | "xlsx";
 
-/**
- * A configured recurring report (FR-9.1) — matches
- * `POST /api/v1/reports/schedules`. `stationId: null` means "all stations,"
- * which api-specification.md §6 restricts to Administrator/Technical Team;
- * a Station Operator's schedules always have a concrete stationId.
- */
 export interface ReportSchedule {
   id: string;
   stationId: string | null;
   frequency: ReportFrequency;
   format: ReportFormat;
-  createdBy: string; // display name — lets Admin/Technical Team see who owns what
+  createdBy: string;
 }
 
-/**
- * One already-generated report file (FR-9.2) — matches
- * `GET /api/v1/reports/generated`. Reports are files sitting in backend
- * storage; there's no email/push delivery in v1, only download/in-app view.
- */
 export interface GeneratedReport {
   id: string;
   scheduleId: string;
   stationId: string | null;
-  generatedAt: string; // ISO timestamp
+  generatedAt: string;
   format: ReportFormat;
   fileName: string;
+}
+
+/**
+ * Matches GET/POST/PATCH /users (api-specification.md §3). `stationIds`
+ * only means anything for role "station_operator" — Administrator and
+ * Technical Team implicitly see every station, so assigning them to
+ * specific ones has no effect (per stakeholder-analysis.md's permission
+ * table) and the admin UI hides that control for those roles.
+ */
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: "station_operator" | "administrator" | "technical_team";
+  stationIds: string[];
 }

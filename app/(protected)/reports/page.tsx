@@ -4,6 +4,7 @@ import { useState } from "react";
 import QuickExportCard from "@/components/reports/QuickExportCard";
 import ScheduleReportCard from "@/components/reports/ScheduleReportCard";
 import GeneratedReportsCard from "@/components/reports/GeneratedReportsCard";
+import ManualRecoveryUploadCard from "@/components/reports/ManualRecoveryUploadCard";
 import { mockStations } from "@/lib/mockStations";
 import { mockSchedules, mockGeneratedReports } from "@/lib/mockReports";
 import { CURRENT_ROLE, ASSIGNED_STATION_ID } from "@/lib/mockAuth";
@@ -11,13 +12,18 @@ import type { ReportSchedule } from "@/lib/types";
 
 /**
  * Reports screen — FR-8 (ad-hoc data export) + FR-9 (scheduled report
- * generation), per api-specification.md §6.
+ * generation) + FR-11.3 (manual data recovery upload), per
+ * api-specification.md §5–6.
  *
  * Role scoping (CONFIRMED in the API spec):
  * - Station Operator: every form here is locked to their one assigned
  *   station — "All Stations" never appears as an option.
  * - Administrator / Technical Team: can create All-Stations schedules and
  *   see everyone's schedules/generated reports, not just their own.
+ *
+ * Manual Data Recovery is Technical-Team-only (see
+ * ManualRecoveryUploadCard.tsx's comment on why that's inferred rather
+ * than explicitly confirmed in the spec).
  *
  * TODO (frontend developer):
  * - replace mockSchedules/mockGeneratedReports with real fetches to
@@ -27,6 +33,7 @@ import type { ReportSchedule } from "@/lib/types";
  */
 export default function ReportsPage() {
   const allowAllStations = CURRENT_ROLE !== "station_operator";
+  const canRecoverData = CURRENT_ROLE === "technical_team";
   const defaultStationId =
     CURRENT_ROLE === "station_operator"
       ? ASSIGNED_STATION_ID
@@ -76,6 +83,12 @@ export default function ReportsPage() {
       </div>
 
       <GeneratedReportsCard reports={mockGeneratedReports} stations={mockStations} />
+
+      {canRecoverData && (
+        <div className="mt-4">
+          <ManualRecoveryUploadCard stations={mockStations} />
+        </div>
+      )}
     </div>
   );
 }

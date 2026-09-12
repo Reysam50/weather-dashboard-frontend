@@ -19,6 +19,11 @@ export interface StationMockData {
   rainGauge1: number[];
   rainGauge2: number[];
   rainAverage: number[];
+  /** Raw per-sensor readings, exposed alongside sensorBand so widgets that
+   * want the individual lines (not the collapsed min/max band) can use them. */
+  airTempHistory: number[];
+  bmpTempHistory: number[];
+  shtTempHistory: number[];
   sensorBand: ReturnType<typeof computeSensorBand>;
   fullDayTrend: TrendPoint[];
   dailyRows: DailySummaryRow[];
@@ -51,6 +56,8 @@ function buildMockStationData(offset: number): StationMockData {
   const rainGauge2 = [0, 0, 0.3, 0.5, 0.9, 0.9, 0.5, 0.3].map((v) => round2(Math.max(0, v + offset * 0.15)));
   const rainAverage = rainGauge1.map((v, i) => round2((v + rainGauge2[i]) / 2));
 
+  // Three redundant sensors, each offset slightly from the "true" temp
+  // reading, same as a real station where they never agree perfectly.
   const airTempHistory = tempHistory.map((v) => round1(v - 1.5));
   const bmpTempHistory = tempHistory.map((v) => round1(v - 1.2));
   const shtTempHistory = tempHistory.map((v) => round1(v - 1.7));
@@ -95,12 +102,16 @@ function buildMockStationData(offset: number): StationMockData {
     rainGauge1,
     rainGauge2,
     rainAverage,
+    airTempHistory,
+    bmpTempHistory,
+    shtTempHistory,
     sensorBand,
     fullDayTrend,
     dailyRows,
   };
 }
 
+/** Keyed by station id — matches the mock stations in the dashboard page. */
 export const MOCK_STATION_DATA: Record<string, StationMockData> = {
   "1": buildMockStationData(0),
   "2": buildMockStationData(1.5),

@@ -3,16 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "@/lib/navigation";
+import { CURRENT_ROLE } from "@/lib/mockAuth";
 
 /**
  * Fixed bottom nav bar for small screens — icon + label per item, active
  * item highlighted in blue. Pattern copied from WeatherNode's
  * resources/views/weather/partials/mobile-nav.blade.php.
  *
+ * Filters NAV_ITEMS by CURRENT_ROLE, same as AppNav.tsx — see that file's
+ * comment for why this only just became enforced.
+ *
  * Icons are plain inline SVG (same approach WeatherNode uses) rather than
- * an icon library, since we only need two right now. If the nav grows
- * (Reports, Admin, etc.) it's worth switching to lucide-react instead of
- * hand-writing more paths here.
+ * an icon library.
  */
 const ICONS: Record<string, React.ReactNode> = {
   "/dashboard": (
@@ -35,16 +37,33 @@ const ICONS: Record<string, React.ReactNode> = {
       />
     </svg>
   ),
+  "/admin": (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 15a3 3 0 100-6 3 3 0 000 6z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"
+      />
+    </svg>
+  ),
   // Add an icon here for each new entry in lib/navigation.ts's NAV_ITEMS.
 };
 
 export default function MobileNav() {
   const pathname = usePathname();
+  const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(CURRENT_ROLE));
 
   return (
     <nav className="glass border-t border-white/10 fixed bottom-0 left-0 right-0 lg:hidden z-50">
       <div className="flex justify-around py-2">
-        {NAV_ITEMS.map((item) => {
+        {visibleItems.map((item) => {
           const active = pathname === item.href;
           return (
             <Link

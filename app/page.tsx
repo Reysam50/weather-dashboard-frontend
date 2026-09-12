@@ -2,18 +2,20 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 
 /**
  * Entry point — decides whether to send the visitor to /login or
  * /dashboard, based on whether they have a valid session
  * (api-specification.md §2, GET /auth/me).
  *
- * Has to be a Client Component here: until the backend exists, this fetch
- * will simply fail (network error, since nothing's listening) — and
- * treating any failure as "not logged in" is exactly the right fallback
- * anyway, so there's nothing to special-case for "backend doesn't exist
- * yet" vs. "session expired" vs. "never logged in".
+ * Matches app/(protected)/layout.tsx's guard logic: only a real 401 means
+ * "not logged in" and sends you to /login. Any other failure (network
+ * error, because there's no backend yet) falls through to /dashboard
+ * instead — previously this treated every failure the same way, which
+ * meant visiting "/" during frontend-only development always bounced to
+ * /login even though the protected layout itself would have let you
+ * through to /dashboard if you'd typed that URL directly.
  */
 export default function Home() {
   const router = useRouter();
@@ -21,7 +23,17 @@ export default function Home() {
   useEffect(() => {
     apiFetch("/auth/me")
       .then(() => router.replace("/dashboard"))
-      .catch(() => router.replace("/login"));
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) {
+          router.replace("/login");
+        } else {
+          console.warn(
+            "GET /auth/me failed without a 401 — defaulting to /dashboard:",
+            err
+          );
+          router.replace("/dashboard");
+        }
+      });
   }, [router]);
 
   return (

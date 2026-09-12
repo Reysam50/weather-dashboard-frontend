@@ -1,20 +1,13 @@
 import { Fragment } from "react";
 import type { Station } from "@/lib/types";
 import type { ComparisonMetricConfig } from "@/lib/comparisonMetrics";
+import { computeMetricStats } from "@/lib/comparisonMetrics";
 import { MOCK_STATION_DATA } from "@/lib/mockStationData";
 
 interface ComparisonTableProps {
   stations: Station[];
   /** Only the metrics currently selected in CompareMetricsPanel. */
   metrics: ComparisonMetricConfig[];
-}
-
-function computeStats(values: number[]) {
-  if (values.length === 0) return { high: null, low: null, avg: null };
-  const high = Math.max(...values);
-  const low = Math.min(...values);
-  const avg = Number((values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(1));
-  return { high, low, avg };
 }
 
 /**
@@ -82,7 +75,7 @@ export default function ComparisonTable({ stations, metrics }: ComparisonTablePr
                 {stations.map((station) => {
                   const stationData = MOCK_STATION_DATA[station.id];
                   const stats = stationData
-                    ? computeStats(metric.getHistory(stationData))
+                    ? computeMetricStats(metric.getHistory(stationData))
                     : { high: null, low: null, avg: null };
                   return (
                     <Fragment key={station.id}>
