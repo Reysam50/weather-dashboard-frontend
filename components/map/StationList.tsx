@@ -1,6 +1,7 @@
 "use client";
 
 import type { Station } from "@/lib/types";
+import { formatTimeAgo } from "@/lib/formatTimeAgo";
 
 interface StationListProps {
   stations: Station[];
@@ -45,9 +46,6 @@ export default function StationList({
           className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-weather-accent"
         />
 
-        {/* Administrator is read-only on this screen (FR-12.3) — this
-            button simply doesn't render for that role, though the real
-            enforcement has to happen on the backend, not here. */}
         {canManage && (
           <button
             type="button"
@@ -84,8 +82,10 @@ export default function StationList({
                   />
                   <span className="font-medium truncate">{station.name}</span>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  {station.status === "online" ? "Online" : "Station Offline"}
+                <p className="text-xs text-gray-400 mt-1 data-value">
+                  {station.status === "online"
+                    ? `Online — updated ${formatTimeAgo(station.lastSeenAt)}`
+                    : `Station Offline — last seen ${formatTimeAgo(station.lastSeenAt)}`}
                 </p>
               </button>
             );

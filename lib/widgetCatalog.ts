@@ -1,32 +1,14 @@
 export type WidgetCategory = "big-number" | "chart" | "table";
 
 export interface WidgetCatalogEntry {
-  id: string; // matches the widget id used in the dashboard's widgetContent map
+  id: string;
   name: string;
   category: WidgetCategory;
   description: string;
-  /** Telemetry fields this widget needs to be meaningful. If a station's
-   * capabilities don't include all of these, the admin picker disables it
-   * rather than letting it be enabled empty. */
   requiresSensors?: string[];
-  /** Ships enabled on every station by default — the original "core"
-   * widget set from before per-station configuration existed. Everything
-   * added after that (the demo batch) defaults to off, so an admin
-   * explicitly opts a station into them instead of every station suddenly
-   * growing 7 new widgets. */
   defaultEnabled: boolean;
 }
 
-/**
- * Every telemetry field currently produced by the hardware, per
- * 03-hardware-integration/hardware-team-clarification-request.md. Used to
- * decide which catalog widgets a station can actually support.
- *
- * All mock stations share this same capability set today because all
- * hardware is identical — this becomes genuinely per-station once
- * stations can have different equipment/device profiles (e.g. if a wind
- * sensor gets added to only some stations later).
- */
 export const STATION_SENSOR_CAPABILITIES = [
   "airTemp",
   "bmpTemp",
@@ -46,13 +28,6 @@ export function isWidgetAvailable(entry: WidgetCatalogEntry): boolean {
   );
 }
 
-/**
- * Every widget instance that can appear on a station's dashboard — the ids
- * here match exactly what app/(protected)/dashboard/page.tsx's
- * widgetContent map uses, so this catalog is directly wireable rather than
- * just documentation (which is what it was before the admin per-station
- * picker existed).
- */
 export const WIDGET_CATALOG: WidgetCatalogEntry[] = [
   {
     id: "temperature-card",
@@ -94,9 +69,46 @@ export const WIDGET_CATALOG: WidgetCatalogEntry[] = [
     id: "sensor-band-chart",
     name: "Sensor Agreement Band",
     category: "chart",
-    description: "Shaded min–max band across the three temperature sensors with an average line.",
+    description: "Shaded min–max band across the three temperature sensors with an average line — a sensor QA/diagnostic chart, not a value-threshold range chart (see 'Temperature Threshold Bands' for that).",
     requiresSensors: ["airTemp", "bmpTemp", "shtTemp"],
     defaultEnabled: true,
+  },
+  {
+    id: "temperature-gauge",
+    name: "Temperature Gauge",
+    category: "chart",
+    description: "Circular gauge showing current temperature against a fixed range.",
+    defaultEnabled: false,
+  },
+  {
+    id: "humidity-gauge",
+    name: "Humidity Gauge",
+    category: "chart",
+    description: "Circular gauge showing current humidity (0–100%).",
+    defaultEnabled: false,
+  },
+  {
+    id: "sensor-pie-chart",
+    name: "Sensor Readings — Pie",
+    category: "chart",
+    description: "Pie chart with live values/percentages and a Total row across the three temperature sensors.",
+    requiresSensors: ["airTemp", "bmpTemp", "shtTemp"],
+    defaultEnabled: false,
+  },
+  {
+    id: "sensor-bar-chart",
+    name: "Sensor Readings — Bar",
+    category: "chart",
+    description: "Bar chart matched pair to 'Sensor Readings — Pie': same series, same live-value/Total legend.",
+    requiresSensors: ["airTemp", "bmpTemp", "shtTemp"],
+    defaultEnabled: false,
+  },
+  {
+    id: "temperature-threshold-bands",
+    name: "Temperature Threshold Bands",
+    category: "chart",
+    description: "Line chart with the y-axis colored into value-threshold bands (cold/mild/hot) and a band legend.",
+    defaultEnabled: false,
   },
   {
     id: "trend-chart",
@@ -153,7 +165,7 @@ export const WIDGET_CATALOG: WidgetCatalogEntry[] = [
     name: "Wind Direction (Compass)",
     category: "chart",
     description: "Scatter of a 0–360° directional reading against time, labeled N/E/S/W.",
-    requiresSensors: ["windDirection"], // not produced by any current hardware
+    requiresSensors: ["windDirection"],
     defaultEnabled: false,
   },
   {

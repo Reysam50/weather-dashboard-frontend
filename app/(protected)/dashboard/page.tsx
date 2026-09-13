@@ -29,6 +29,10 @@ import MultiSeriesLineChart from "@/components/widgets/MultiSeriesLineChart";
 import SingleMetricChart from "@/components/widgets/SingleMetricChart";
 import DirectionScatterChart from "@/components/widgets/DirectionScatterChart";
 import AccumulationRateChart from "@/components/widgets/AccumulationRateChart";
+import GaugeChart from "@/components/widgets/GaugeChart";
+import PieChartWidget from "@/components/widgets/PieChartWidget";
+import BarChartWidget from "@/components/widgets/BarChartWidget";
+import ThresholdRangeChart, { type ThresholdBand } from "@/components/widgets/ThresholdRangeChart";
 import StationList from "@/components/map/StationList";
 import AddStationForm from "@/components/map/AddStationForm";
 import type { Station } from "@/lib/types";
@@ -40,8 +44,6 @@ import { loadAdminSettings } from "@/lib/adminSettings";
 import { DEFAULT_ENABLED_WIDGET_IDS } from "@/lib/widgetCatalog";
 import { loadStationWidgetIds, reconcileWidgetOrder } from "@/lib/stationWidgetConfig";
 
-// Leaflet needs `window`/`document` — same reason the ApexCharts widgets
-// are loaded this way.
 const StationMap = dynamic(() => import("@/components/map/StationMap"), {
   ssr: false,
   loading: () => (
@@ -51,31 +53,6 @@ const StationMap = dynamic(() => import("@/components/map/StationMap"), {
   ),
 });
 
-/**
- * Main dashboard — station selector + per-station widget grid, together on
- * one page. Per FR-12.1: "A map-based station selector... shall be added
- * to the dashboard... selecting a station displays that station's details
- * on the dashboard" — the map lives here because the spec says so; an
- * earlier version of this app put it on its own /stations route, which
- * didn't actually match FR-12.
- *
- * Role-gated behavior (stakeholder-analysis.md / FR-12.3):
- * - Station Operator: no map/selector at all — sees only their one
- *   assigned station's data, fixed, no ability to switch.
- * - Administrator: sees the map/list selector, can pick any station, but
- *   "+ Add Station" does not render (read-only on FR-12).
- * - Technical Team: sees the selector AND station provisioning (add/edit).
- *
- * TODO (frontend developer):
- * - replace CURRENT_ROLE, mockStations, and MOCK_STATION_DATA with real
- *   data from GET /auth/me and the real stations/telemetry endpoints
- * - wire lib/websocket.ts so widgets update live for the selected station
- * - for Station Operator, ASSIGNED_STATION_ID should come from their user
- *   record (user_station_assignments table), not be hardcoded here
- */
-
-/** localStorage key prefix for widget order — kept per-station now that
- * different stations can have different enabled widgets. */
 function widgetOrderStorageKey(stationId: string) {
   return `main-dashboard:${stationId}`;
 }
@@ -95,10 +72,20 @@ export default function DashboardPage() {
     lng: number;
   } | null>(null);
 
-  // Comparison mode — FR-2.2, Administrator/Technical Team only. Kept
-  // entirely separate from selectedStationId/StationList's single-select
-  // state so turning this on/off can't affect the normal single-station
-  // dashboard view.
+  const [searchMarker, setSearchMarker] = useState<{
+    lat: number;
+    lng: number;
+    label: string;
+  } | null>(null);
+
+  function handleLocationFound(lat: number, lng: number, label: string) {
+    if (isAddingStation && canManageStations) {
+      setPendingLocation({ lat, lng });
+    } else {
+      setSearchMarker({ lat, lng, label });
+    }
+  }
+
   const canCompare = CURRENT_ROLE !== "station_operator";
   const [compareMode, setCompareMode] = useState(false);
   const [compareStationIds, setCompareStationIds] = useState<string[]>([]);
@@ -113,8 +100,6 @@ export default function DashboardPage() {
     .map((id) => stations.find((s) => s.id === id))
     .filter((s): s is Station => Boolean(s));
 
-  // Which metrics to compare — defaults to just Temperature so the view
-  // isn't empty the moment Compare mode turns on.
   const [compareMetricKeys, setCompareMetricKeys] = useState<string[]>([
     "temperature",
   ]);
@@ -127,11 +112,6 @@ export default function DashboardPage() {
     compareMetricKeys.includes(m.key)
   );
 
-  // Widget order — now per-station, and reconciled against whatever
-  // lib/stationWidgetConfig.ts says is enabled for the CURRENTLY selected
-  // station, so switching stations shows that station's own widget set
-  // instead of one fixed global list. Re-runs whenever selectedStationId
-  // changes, not just on mount.
   const [order, setOrder] = useState<string[]>(DEFAULT_ENABLED_WIDGET_IDS);
   useEffect(() => {
     const enabledIds = loadStationWidgetIds(selectedStationId, DEFAULT_ENABLED_WIDGET_IDS);
@@ -139,9 +119,6 @@ export default function DashboardPage() {
     setOrder(reconcileWidgetOrder(savedOrder, enabledIds));
   }, [selectedStationId]);
 
-  // Same reasoning as the widget order above — this is a real admin
-  // setting now (app/(protected)/admin/page.tsx's Settings tab), not a
-  // hardcoded constant.
   const [mapTheme, setMapTheme] = useState<"light" | "dark">("light");
   useEffect(() => {
     setMapTheme(loadAdminSettings().mapTheme);
@@ -169,10 +146,9 @@ export default function DashboardPage() {
     latitude: number;
     longitude: number;
   }) {
-    // TODO: POST to the real stations endpoint once it exists.
     const station: Station = {
       id: crypto.randomUUID(),
-      status: "offline", // hasn't reported in yet
+      status: "offline",
       lastSeenAt: null,
       ...newStation,
     };
@@ -182,16 +158,12 @@ export default function DashboardPage() {
     setPendingLocation(null);
   }
 
-  // This is the actual "selecting a station displays that station's
-  // details" wiring from FR-12.1: every widget below reads from `data`,
-  // which is just whichever station is currently selected.
   const data = useMemo(
     () => MOCK_STATION_DATA[selectedStationId] ?? MOCK_STATION_DATA["1"],
     [selectedStationId]
   );
   const selectedStation = stations.find((s) => s.id === selectedStationId);
 
-  // Derived data for the new demo widgets — see comments per widget below.
   const rawReadingsRows = data.hourLabels.map((time, i) => ({
     time,
     temp: data.tempHistory[i],
@@ -200,11 +172,28 @@ export default function DashboardPage() {
     rainfall: data.rainfallHistory[i],
   }));
 
-  // Illustrative only — no wind sensor exists on the current hardware
-  // (03-hardware-integration/hardware-team-clarification-request.md), so
-  // this is a deterministic-but-fake pattern purely to show what
-  // DirectionScatterChart looks like with real-shaped data.
   const windDirectionDemo = data.hourLabels.map((_, i) => (i * 47 + 30) % 360);
+
+  const sensorReadingSeries = [
+    { name: "Air", value: data.current.airTemp, color: "#f59e0b" },
+    {
+      name: "BMP",
+      value: data.bmpTempHistory[data.bmpTempHistory.length - 1],
+      color: "#06b6d4",
+    },
+    {
+      name: "SHT",
+      value: data.shtTempHistory[data.shtTempHistory.length - 1],
+      color: "#a78bfa",
+    },
+  ];
+
+  const temperatureBands: ThresholdBand[] = [
+    { label: "<15°C — Cold", from: -10, to: 15, color: "#3b82f6" },
+    { label: "15–25°C — Mild", from: 15, to: 25, color: "#22c55e" },
+    { label: "25–32°C — Warm", from: 25, to: 32, color: "#f59e0b" },
+    { label: ">32°C — Hot", from: 32, to: 45, color: "#ef4444" },
+  ];
 
   const widgetContent: Record<string, React.ReactNode> = {
     "temperature-card": (
@@ -215,6 +204,7 @@ export default function DashboardPage() {
         accentColor="text-weather-warm"
         sparklineData={data.tempHistory}
         sparklineColor="#f59e0b"
+        lastUpdated={data.current.lastUpdatedAt}
         footer={[
           { label: "Today High", value: `${data.current.todayHigh}°` },
           { label: "Today Low", value: `${data.current.todayLow}°` },
@@ -229,6 +219,7 @@ export default function DashboardPage() {
         accentColor="text-weather-cold"
         sparklineData={data.humidityHistory}
         sparklineColor="#06b6d4"
+        lastUpdated={data.current.lastUpdatedAt}
       />
     ),
     "pressure-card": (
@@ -239,6 +230,7 @@ export default function DashboardPage() {
         accentColor="text-weather-accent"
         sparklineData={data.pressureHistory}
         sparklineColor="#3b82f6"
+        lastUpdated={data.current.lastUpdatedAt}
       />
     ),
     "rainfall-card": (
@@ -249,6 +241,7 @@ export default function DashboardPage() {
         accentColor="text-weather-rain"
         sparklineData={data.rainfallHistory}
         sparklineColor="#6366f1"
+        lastUpdated={data.current.lastUpdatedAt}
       />
     ),
     "rain-comparison-chart": (
@@ -285,10 +278,6 @@ export default function DashboardPage() {
         <DailySummaryTable rows={data.dailyRows} unit="°" rainUnit="mm" />
       </div>
     ),
-
-    // ---- Widgets added after the original core 8 — off by default per
-    // lib/widgetCatalog.ts, an admin turns them on per station in
-    // /admin's Widgets tab ----
 
     "station-summary-table": (
       <StationSummaryTable
@@ -359,9 +348,51 @@ export default function DashboardPage() {
         unit="mm"
       />
     ),
+    "temperature-gauge": (
+      <GaugeChart
+        title="Air Temperature"
+        value={data.current.airTemp}
+        min={0}
+        max={45}
+        unit="°C"
+        color="#f59e0b"
+      />
+    ),
+    "humidity-gauge": (
+      <GaugeChart
+        title="Humidity"
+        value={data.current.humidity}
+        min={0}
+        max={100}
+        unit="%"
+        color="#06b6d4"
+      />
+    ),
+    "sensor-pie-chart": (
+      <PieChartWidget
+        title="Temperature Sensors — Share"
+        series={sensorReadingSeries}
+        unit="°C"
+      />
+    ),
+    "sensor-bar-chart": (
+      <BarChartWidget
+        title="Temperature Sensors — Compare"
+        series={sensorReadingSeries}
+        unit="°C"
+      />
+    ),
+    "temperature-threshold-bands": (
+      <ThresholdRangeChart
+        title="Air Temperature — Threshold Bands"
+        categories={data.hourLabels}
+        data={data.tempHistory}
+        bands={temperatureBands}
+        unit="°C"
+      />
+    ),
   };
 
-  // The four small cards sit side by side; everything else spans the row.
   const spanFor = (id: string) => (id.endsWith("-card") ? "xl:col-span-1" : "xl:col-span-4");
 
   return (
@@ -369,8 +400,6 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold">Dashboard</h1>
 
-        {/* FR-2.2, Administrator/Technical Team only — Station Operator
-            never sees this button at all. */}
         {canCompare && (
           <button
             type="button"
@@ -412,6 +441,7 @@ export default function DashboardPage() {
                 onAddStationClick={() => {
                   setIsAddingStation(true);
                   setPendingLocation(null);
+                  setSearchMarker(null);
                 }}
               />
             </div>
@@ -440,12 +470,12 @@ export default function DashboardPage() {
               }
               pendingMarker={pendingLocation}
               mapTheme={mapTheme}
+              onLocationFound={handleLocationFound}
+              searchMarker={searchMarker}
             />
           </div>
         </div>
       ) : (
-        // Station Operator: no selector, just a label showing their one
-        // fixed station — per FR-12.3, they have no access to this UI at all.
         <p className="text-sm text-gray-400 mb-4">
           Station:{" "}
           <span className="text-white font-medium">

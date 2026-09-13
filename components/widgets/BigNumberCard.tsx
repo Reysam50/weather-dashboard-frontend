@@ -1,4 +1,5 @@
 import Sparkline from "./Sparkline";
+import { formatTimeAgo } from "@/lib/formatTimeAgo";
 
 interface FooterStat {
   label: string;
@@ -9,28 +10,14 @@ interface BigNumberCardProps {
   label: string;
   value: number | string;
   unit?: string;
-  /** Tailwind text color class for the big value, e.g. "text-weather-warm". */
   accentColor?: string;
   sparklineData?: number[];
   sparklineColor?: string;
-  /** Optional row of small stats under a divider (e.g. Today High / Low). */
   footer?: FooterStat[];
+  /** ISO timestamp of this reading — shown as "Last update Xd ago". */
+  lastUpdated?: string;
 }
 
-/**
- * Generic "big number" widget: a label, a hero value, an optional trend
- * sparkline, and an optional row of small footer stats. This is the
- * reusable building block behind Temperature, Humidity, Pressure, and
- * Rainfall cards — per dashboard-reference-analysis.md's "big-number cards
- * with sparkline" widget type, rather than one hardcoded card per metric.
- *
- * Card chrome (gradient background, rounded-2xl, glow, border) is copied
- * from WeatherNode's hero widget in dashboard.blade.php. Left out on
- * purpose: the animated day/night sky illustration behind it, the 3D mouse
- * tilt effect, and drag-to-reorder — all decorative/interactive flourishes
- * specific to a single-station public page, not things this internal ops
- * dashboard needs. We can revisit any of them later if you want the polish.
- */
 export default function BigNumberCard({
   label,
   value,
@@ -39,10 +26,18 @@ export default function BigNumberCard({
   sparklineData,
   sparklineColor,
   footer,
+  lastUpdated,
 }: BigNumberCardProps) {
   return (
     <div className="bg-gradient-to-br from-weather-card to-weather-card/50 rounded-2xl p-4 md:p-6 glow border border-white/10">
-      <div className="text-xs text-gray-400 mb-2 md:mb-3">{label}</div>
+      <div className="flex items-start justify-between gap-2 mb-2 md:mb-3">
+        <div className="text-xs text-gray-400">{label}</div>
+        {lastUpdated && (
+          <div className="text-[10px] text-gray-500 shrink-0 data-value">
+            {formatTimeAgo(lastUpdated)}
+          </div>
+        )}
+      </div>
 
       <div
         className={`text-4xl md:text-5xl font-bold font-display leading-none data-value ${accentColor}`}

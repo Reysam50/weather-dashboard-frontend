@@ -10,6 +10,7 @@ export interface StationMockData {
     rollAvgRain_mm: number;
     todayHigh: number;
     todayLow: number;
+    lastUpdatedAt: string;
   };
   hourLabels: string[];
   tempHistory: number[];
@@ -19,8 +20,6 @@ export interface StationMockData {
   rainGauge1: number[];
   rainGauge2: number[];
   rainAverage: number[];
-  /** Raw per-sensor readings, exposed alongside sensorBand so widgets that
-   * want the individual lines (not the collapsed min/max band) can use them. */
   airTempHistory: number[];
   bmpTempHistory: number[];
   shtTempHistory: number[];
@@ -29,17 +28,7 @@ export interface StationMockData {
   dailyRows: DailySummaryRow[];
 }
 
-/**
- * Builds one station's worth of mock data, nudged by `offset` so different
- * stations visibly show different numbers — otherwise there'd be no way to
- * confirm on screen that selecting a different station actually changes
- * what the widgets display.
- *
- * TODO (frontend developer): this whole file goes away once real data
- * fetching exists — GET a station's current reading + history from the API
- * (system-architecture.md §4) instead of looking it up here.
- */
-function buildMockStationData(offset: number): StationMockData {
+function buildMockStationData(offset: number, minutesAgo: number): StationMockData {
   const hourLabels = ["06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00"];
 
   const round1 = (n: number) => Number(n.toFixed(1));
@@ -56,8 +45,6 @@ function buildMockStationData(offset: number): StationMockData {
   const rainGauge2 = [0, 0, 0.3, 0.5, 0.9, 0.9, 0.5, 0.3].map((v) => round2(Math.max(0, v + offset * 0.15)));
   const rainAverage = rainGauge1.map((v, i) => round2((v + rainGauge2[i]) / 2));
 
-  // Three redundant sensors, each offset slightly from the "true" temp
-  // reading, same as a real station where they never agree perfectly.
   const airTempHistory = tempHistory.map((v) => round1(v - 1.5));
   const bmpTempHistory = tempHistory.map((v) => round1(v - 1.2));
   const shtTempHistory = tempHistory.map((v) => round1(v - 1.7));
@@ -93,6 +80,7 @@ function buildMockStationData(offset: number): StationMockData {
       rollAvgRain_mm: rainfallHistory[rainfallHistory.length - 1],
       todayHigh: lastDay.tempHigh ?? 0,
       todayLow: lastDay.tempLow ?? 0,
+      lastUpdatedAt: new Date(Date.now() - minutesAgo * 60 * 1000).toISOString(),
     },
     hourLabels,
     tempHistory,
@@ -111,9 +99,8 @@ function buildMockStationData(offset: number): StationMockData {
   };
 }
 
-/** Keyed by station id — matches the mock stations in the dashboard page. */
 export const MOCK_STATION_DATA: Record<string, StationMockData> = {
-  "1": buildMockStationData(0),
-  "2": buildMockStationData(1.5),
-  "3": buildMockStationData(-1.2),
+  "1": buildMockStationData(0, 3),
+  "2": buildMockStationData(1.5, 22),
+  "3": buildMockStationData(-1.2, 780),
 };
