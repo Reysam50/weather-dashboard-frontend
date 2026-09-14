@@ -65,6 +65,19 @@ export default function MultiSeriesLineChart({
       position: "top",
       horizontalAlign: "left",
       labels: { colors: "#d1d5db" },
+      // dashboard-reference-analysis.md's multi-series chart spec calls
+      // for "live per-series averages" in the legend, not just plain
+      // names — ApexCharts' legend formatter runs per series and gets
+      // that series' own data via opts.w.globals.series[opts.seriesIndex].
+      // Click-to-isolate is already ApexCharts' default legend behavior
+      // (clicking an entry toggles that series), so nothing extra was
+      // needed for that half of the requirement.
+      formatter: (seriesName: string, opts) => {
+        const seriesData: number[] = opts.w.globals.series[opts.seriesIndex] ?? [];
+        if (seriesData.length === 0) return seriesName;
+        const avg = seriesData.reduce((sum, v) => sum + v, 0) / seriesData.length;
+        return `${seriesName}: ${avg.toFixed(1)}${unit} avg`;
+      },
     },
     tooltip: {
       theme: "dark",

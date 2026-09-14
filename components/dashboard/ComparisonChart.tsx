@@ -17,17 +17,6 @@ interface ComparisonChartProps {
   stations: Station[];
 }
 
-/**
- * Overlay line chart across multiple stations for ONE metric — the
- * "overlay charts across stations" capability FR-2.2 calls for. The
- * dashboard page renders one of these per metric checked in
- * CompareMetricsPanel, so with e.g. Temperature + Humidity both selected,
- * two of these stack vertically.
- *
- * Colors are assigned by position (selection order) from a fixed 4-color
- * palette, matching CompareStationsPanel's station cap — beyond ~4 lines
- * an overlay chart stops being readable regardless of styling.
- */
 export default function ComparisonChart({ metric, stations }: ComparisonChartProps) {
   if (stations.length === 0) return null;
 
@@ -60,6 +49,12 @@ export default function ComparisonChart({ metric, stations }: ComparisonChartPro
       position: "top",
       horizontalAlign: "left",
       labels: { colors: "#d1d5db" },
+      formatter: (seriesName: string, opts) => {
+        const seriesData: number[] = opts.w.globals.series[opts.seriesIndex] ?? [];
+        if (seriesData.length === 0) return seriesName;
+        const avg = seriesData.reduce((sum, v) => sum + v, 0) / seriesData.length;
+        return `${seriesName}: ${avg.toFixed(1)}${metric.unit} avg`;
+      },
     },
     tooltip: {
       theme: "dark",

@@ -291,12 +291,13 @@ export default function DashboardPage() {
       <RawReadingsTable
         title="Raw Readings"
         rows={rawReadingsRows}
+        pageSize={5}
         columns={[
           { key: "time", label: "Time", format: (r) => r.time },
-          { key: "temp", label: "Temperature", align: "right", format: (r) => `${r.temp}°C` },
-          { key: "humidity", label: "Humidity", align: "right", format: (r) => `${r.humidity}%` },
-          { key: "pressure", label: "Pressure", align: "right", format: (r) => `${r.pressure} hPa` },
-          { key: "rainfall", label: "Rainfall (avg)", align: "right", format: (r) => `${r.rainfall} mm` },
+          { key: "temp", label: "Temperature", align: "right", format: (r) => `${r.temp}°C`, sortValue: (r) => r.temp },
+          { key: "humidity", label: "Humidity", align: "right", format: (r) => `${r.humidity}%`, sortValue: (r) => r.humidity },
+          { key: "pressure", label: "Pressure", align: "right", format: (r) => `${r.pressure} hPa`, sortValue: (r) => r.pressure },
+          { key: "rainfall", label: "Rainfall (avg)", align: "right", format: (r) => `${r.rainfall} mm`, sortValue: (r) => r.rainfall },
         ]}
       />
     ),
