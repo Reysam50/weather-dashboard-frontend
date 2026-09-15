@@ -8,7 +8,30 @@
 
 html,
 body {
-  background-color: #0f1419;
+  background-color: #090d16;
+}
+
+/* ==========================================================================
+   Material Symbols Outlined — required base rule
+   ========================================================================== */
+/* Google's font stylesheet (linked in app/layout.tsx) only defines the
+   @font-face; without this rule the icon font renders as literal text
+   ("radar", "device_thermostat", …) instead of glyphs. Standard rule from
+   Google's own Material Symbols usage guide. */
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Tabular numbers so live sensor readings don't jitter horizontally as
@@ -52,33 +75,7 @@ body {
   box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
 }
 
-/* ==========================================================================
-   Animated background gradient — fixed layer behind all page content
-   ========================================================================== */
-
-.weather-bg {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: linear-gradient(-45deg, #0f1419, #1a2744, #0f1419, #1e1b4b, #0f1419);
-  background-size: 400% 400%;
-  animation: gradientShift 30s ease infinite;
-}
-
-@keyframes gradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-/* Pulsing green "live" dot next to the clock in the header. */
+/* Pulsing green "live" dot — still used by not-yet-redesigned screens. */
 @keyframes livePulse {
   0%,
   100% {
@@ -99,30 +96,35 @@ body {
    Leaflet map theming — see StationMap.tsx's `mapTheme` prop
    ========================================================================== */
 
+/* There's no free dark tile provider left without an API key (see
+   lib/geocode.ts's comment — CARTO's went the same way Stadia's and
+   Esri's did), so "dark mode" stays this CSS-filter trick on plain OSM
+   tiles. Tuned toward the redesign's cyan-on-navy "tactical" look: a bit
+   more saturation than a flat grayscale invert. */
 .invert-map .leaflet-tile-pane {
-  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+  filter: invert(1) hue-rotate(185deg) saturate(1.4) brightness(0.9) contrast(0.95);
 }
 
 .station-map .leaflet-popup-content-wrapper {
-  background: #1a2332;
-  color: #e5e7eb;
+  background: #0e1320;
+  color: #f1f4fd;
   border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 .station-map .leaflet-popup-content {
   margin: 10px 14px;
 }
 .station-map .leaflet-popup-tip {
-  background: #1a2332;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #0e1320;
+  border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: none;
 }
 .station-map .leaflet-popup-close-button {
-  color: #9ca3af !important;
+  color: #94a3b8 !important;
 }
 .station-map .leaflet-popup-close-button:hover {
-  color: #e5e7eb !important;
+  color: #f1f4fd !important;
 }
 
 /* ==========================================================================

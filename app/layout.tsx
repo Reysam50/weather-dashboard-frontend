@@ -34,10 +34,20 @@ export default function RootLayout({
       lang="en"
       className={`dark ${inter.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="bg-weather-dark text-white font-sans min-h-screen">
-        {/* Fixed gradient layer behind everything — see .weather-bg in
-            globals.css. It never scrolls and never intercepts clicks. */}
-        <div className="weather-bg" aria-hidden="true" />
+      <head>
+        {/* Material Symbols isn't one of next/font's bundled Google fonts,
+            so unlike Inter/JetBrains Mono above it's loaded the plain
+            <link> way — same as the Stitch mockups do it. Every icon in
+            the redesigned screens (<span class="material-symbols-outlined">)
+            depends on this being present. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="bg-surface-base text-on-surface font-sans min-h-screen">
         {children}
       </body>
     </html>

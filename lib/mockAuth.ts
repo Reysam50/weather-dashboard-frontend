@@ -12,3 +12,10 @@ export type Role = "technical_team" | "administrator" | "station_operator";
  */
 export const CURRENT_ROLE: Role = "technical_team";
 export const ASSIGNED_STATION_ID = "1"; // only relevant when CURRENT_ROLE is "station_operator"
+
+/** Display label for the header's role badge. */
+export const ROLE_LABELS: Record<Role, string> = {
+  technical_team: "Tech Team",
+  administrator: "Administrator",
+  station_operator: "Operator",
+};

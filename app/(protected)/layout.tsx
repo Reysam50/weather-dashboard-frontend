@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/components/layout/AppHeader";
-import AppNav from "@/components/layout/AppNav";
 import MobileNav from "@/components/layout/MobileNav";
 import { apiFetch, ApiError } from "@/lib/api";
+import { StationProvider } from "@/lib/StationContext";
+import { PAGE_CONTAINER } from "@/lib/layout";
 
 /**
  * Shared shell for every logged-in screen — currently /dashboard, /reports,
@@ -87,16 +88,19 @@ export default function ProtectedLayout({
   }
 
   return (
-    <>
+    <StationProvider>
+      {/* AppHeader now carries the primary nav tabs itself (the redesign
+          merges what used to be AppHeader + AppNav into one bar) — see
+          AppHeader.tsx's comment. AppNav.tsx is gone; MobileNav still
+          covers small screens on its own, from lib/navigation.ts. */}
       <AppHeader />
-      <AppNav />
       {/* pb-24 leaves room for the fixed mobile bottom nav so it never
           covers the last bit of content on small screens; lg:pb-6 removes
-          that extra space once MobileNav is hidden. */}
-      <main className="max-w-7xl mx-auto px-4 py-6 pb-24 lg:pb-6">
-        {children}
-      </main>
+          that extra space once MobileNav is hidden. PAGE_CONTAINER is the
+          exact same max-width + padding AppHeader uses, so the header and
+          this content area always line up — see lib/layout.ts. */}
+      <main className={`${PAGE_CONTAINER} py-8 pb-24 lg:pb-8`}>{children}</main>
       <MobileNav />
-    </>
+    </StationProvider>
   );
 }

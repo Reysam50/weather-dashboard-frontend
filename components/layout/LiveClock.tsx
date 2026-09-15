@@ -3,18 +3,17 @@
 import { useEffect, useState } from "react";
 
 /**
- * Ticking clock + green "live" dot, shown in the header — mirrors the
- * #currentTime element in WeatherNode's layout.blade.php.
+ * Two-line CAT / UTC clock for the header's right-hand cluster — matches
+ * the Live Telemetry redesign (source of truth for the header). Stations
+ * are in Malawi, hence CAT (Central Africa Time, UTC+2) as the primary
+ * zone with UTC underneath for cross-referencing telemetry timestamps,
+ * which the backend stores in UTC.
  *
- * This has to be a Client Component ("use client" above) because it uses
- * setInterval/useState, which only make sense in the browser — the server
- * can't keep a timer running for you.
+ * Starts as null for the same hydration-mismatch reason as before: the
+ * server can't know "now" in a way that will exactly match the client's
+ * first paint, so the real time only appears after mounting.
  */
 export default function LiveClock() {
-  // Starts as null on purpose: the server renders this component once with
-  // no way of knowing the visitor's local time, and the client's first
-  // render must match that exactly or React logs a hydration-mismatch
-  // warning. We fill in the real time only after mounting (see useEffect).
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -24,26 +23,30 @@ export default function LiveClock() {
   }, []);
 
   if (!now) {
-    return <span className="font-display text-gray-300">--:--:--</span>;
+    return (
+      <div className="hidden xl:flex flex-col items-end px-2.5 py-1 rounded-xl bg-card-bg border border-border-line font-mono leading-tight">
+        <span className="text-xs font-semibold text-secondary tabular-nums">--:--:--</span>
+        <span className="text-[9px] text-on-surface-variant tabular-nums">--:--:-- UTC</span>
+      </div>
+    );
   }
 
+  const catTime = now.toLocaleTimeString("en-GB", {
+    timeZone: "Africa/Blantyre",
+    hour12: false,
+  });
+  const utcTime = now.toLocaleTimeString("en-GB", {
+    timeZone: "UTC",
+    hour12: false,
+  });
+
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <span
-        className="live-indicator inline-block w-2 h-2 bg-green-500 rounded-full shadow-lg shadow-green-500/50"
-        aria-hidden="true"
-      />
-      <span className="font-display text-gray-300 data-value">
-        {now.toLocaleTimeString([], { hour12: false })}
-      </span>
-      <span className="text-gray-500">|</span>
-      <span className="text-gray-300">
-        {now.toLocaleDateString([], {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        })}
-      </span>
+    <div className="hidden xl:flex flex-col items-end px-2.5 py-1 rounded-xl bg-card-bg border border-border-line font-mono leading-tight">
+      <div className="flex items-center gap-1 text-xs font-semibold text-secondary tabular-nums">
+        <span>{catTime}</span>
+        <span className="text-[9px] text-amber-300/70">CAT</span>
+      </div>
+      <div className="text-[9px] text-on-surface-variant tabular-nums">{utcTime} UTC</div>
     </div>
   );
 }

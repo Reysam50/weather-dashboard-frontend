@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: "class",
-  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
@@ -16,6 +16,27 @@ module.exports = {
           cold: "#06b6d4",
           rain: "#6366f1",
         },
+        // Palette from the Stitch redesign (source of truth: the Live
+        // Telemetry Dashboard header). Applied globally in globals.css so
+        // every screen shares one dark-navy/cyan look as we migrate each
+        // page over; the weather.* tokens above stay put until nothing
+        // references them anymore.
+        "surface-base": "#090d16",
+        "card-bg": "#0e1320",
+        "card-bg-subtle": "#131929",
+        "border-line": "rgba(255, 255, 255, 0.07)",
+        "border-hover": "rgba(0, 229, 255, 0.25)",
+        primary: "#c3f5ff",
+        "primary-container": "#00e5ff",
+        "primary-dim": "#00daf3",
+        secondary: "#ffb95f",
+        "secondary-container": "#ee9800",
+        tertiary: "#d0bcff",
+        "on-surface": "#f1f4fd",
+        "on-surface-variant": "#94a3b8",
+        "surface-dim": "#070a12",
+        error: "#ffb4ab",
+        success: "#34d399",
       },
       fontFamily: {
         // These CSS variables are defined by next/font in app/layout.tsx.
