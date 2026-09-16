@@ -4,22 +4,28 @@ export interface Point {
 }
 
 /** Maps a series of numbers onto an SVG viewBox, y-axis inverted (higher
- * value = smaller y, since SVG's origin is top-left). */
+ * value = smaller y, since SVG's origin is top-left). By default scales
+ * to the series' own min/max — pass `range` to instead scale against a
+ * shared min/max across multiple series (see MultiStationTrendChart.tsx:
+ * without a shared range, two stations a few degrees apart each get
+ * independently stretched to fill the full height and end up drawing
+ * almost the same shape on top of each other). */
 export function scaleSeries(
   values: number[],
   width: number,
   height: number,
-  padY = 2
+  padY = 2,
+  range?: { min: number; max: number }
 ): Point[] {
   if (values.length === 0) return [];
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
+  const min = range?.min ?? Math.min(...values);
+  const max = range?.max ?? Math.max(...values);
+  const spread = max - min || 1;
   const usableH = height - padY * 2;
 
   return values.map((v, i) => ({
     x: values.length === 1 ? width / 2 : (i / (values.length - 1)) * width,
-    y: padY + usableH - ((v - min) / range) * usableH,
+    y: padY + usableH - ((v - min) / spread) * usableH,
   }));
 }
 

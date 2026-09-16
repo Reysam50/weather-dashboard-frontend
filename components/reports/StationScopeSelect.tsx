@@ -31,7 +31,7 @@ export default function StationScopeSelect({
       value={value ?? "__all__"}
       onChange={(e) => onChange(e.target.value === "__all__" ? null : e.target.value)}
       disabled={disabled}
-      className="input-dark w-full px-3 py-2 rounded-lg text-sm text-white disabled:opacity-50"
+      className="w-full bg-[#080c14] border border-border-line rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400 disabled:opacity-50 transition-colors"
     >
       {allowAllStations && <option value="__all__">All Stations</option>}
       {stations.map((station) => (

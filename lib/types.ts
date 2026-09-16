@@ -53,7 +53,7 @@ export interface Station {
 }
 
 export type ReportFrequency = "daily" | "weekly" | "monthly" | "custom";
-export type ReportFormat = "csv" | "xls" | "xlsx";
+export type ReportFormat = "csv" | "xls" | "xlsx" | "pdf";
 
 export interface ReportSchedule {
   id: string;

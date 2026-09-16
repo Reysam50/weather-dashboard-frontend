@@ -39,14 +39,21 @@ export default function MultiStationTrendChart({
   const online = series.filter((s) => s.station.status === "online");
   const offline = series.filter((s) => s.station.status === "offline");
 
-  const scaled = useMemo(
-    () =>
-      series.map((s) => ({
-        ...s,
-        points: scaleSeries(s.values, VIEW_W, VIEW_H, 20),
-      })),
-    [series]
-  );
+  const scaled = useMemo(() => {
+    // Shared Y range across every series (online + offline) so a real
+    // gap between stations shows up as vertical separation instead of
+    // each line being independently stretched to fill the chart height.
+    const allValues = series.flatMap((s) => s.values);
+    const range =
+      allValues.length > 0
+        ? { min: Math.min(...allValues), max: Math.max(...allValues) }
+        : undefined;
+
+    return series.map((s) => ({
+      ...s,
+      points: scaleSeries(s.values, VIEW_W, VIEW_H, 20, range),
+    }));
+  }, [series]);
 
   // Peak divergence: the hour where the top two ONLINE series differ most.
   let peakIdx: number | null = null;
