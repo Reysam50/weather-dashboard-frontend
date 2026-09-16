@@ -2,16 +2,27 @@ const STORAGE_KEY = "admin-settings";
 
 export interface AdminSettings {
   mapTheme: "light" | "dark";
+  /** How often stations push telemetry — also read by the header's
+   * SseLatencyBadge so the "…s INT" label reflects the real setting
+   * instead of a hardcoded 60. */
+  pollingIntervalSec: 30 | 60 | 300;
+  fallbackTelemetryEnabled: boolean;
+  sdBackpressureEnabled: boolean;
+  mtlsEnabled: boolean;
 }
 
-const DEFAULT_SETTINGS: AdminSettings = {
-  mapTheme: "light",
+export const DEFAULT_SETTINGS: AdminSettings = {
+  mapTheme: "dark",
+  pollingIntervalSec: 60,
+  fallbackTelemetryEnabled: true,
+  sdBackpressureEnabled: true,
+  mtlsEnabled: true,
 };
 
 /**
  * Reads system-wide settings from localStorage, falling back to defaults
  * for anything never set — same "browser-only until a real settings API
- * exists" pattern as lib/dashboardLayout.ts's widget order.
+ * exists" pattern as lib/stationHardware.ts and friends.
  *
  * TODO (frontend developer): replace with GET/PATCH /settings once that
  * endpoint exists, so settings apply account/org-wide instead of

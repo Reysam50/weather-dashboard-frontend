@@ -40,7 +40,7 @@ export default function StationInspectPod({
   }
 
   return (
-    <div className="absolute top-4 right-4 w-80 max-w-[calc(100vw-2rem)] bg-card-bg/95 backdrop-blur-xl rounded-xl p-4 shadow-2xl z-[500] border border-border-hover">
+    <div className="absolute top-4 right-4 w-80 max-w-[calc(100vw-2rem)] bg-card-bg/95 backdrop-blur-xl rounded-xl p-4 shadow-2xl z-[1000] border border-border-hover">
       <div className="flex items-start justify-between pb-2.5 border-b border-border-line">
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5">

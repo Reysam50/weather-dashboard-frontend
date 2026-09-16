@@ -53,6 +53,14 @@ const SEARCH_RESULT_ICON = L.divIcon({
 });
 
 interface StationMapProps {
+  /**
+   * IMPORTANT: whatever wraps this component needs `isolate` (or another
+   * way of creating a new stacking context) in its className. Leaflet's
+   * own CSS gives its panes/controls z-index up to 1000, and without a
+   * containing stacking context those values compare directly against
+   * page chrome like a sticky header — and win. See
+   * app/(protected)/stations/page.tsx's map wrapper for the pattern.
+   */
   stations: Station[];
   selectedStationId: string | null;
   onSelectStation: (id: string) => void;
@@ -129,7 +137,7 @@ function MapControls({ stations, onRecenter }: { stations: Station[]; onRecenter
   const map = useMap();
 
   return (
-    <div className="absolute bottom-4 left-4 z-[500] flex flex-col gap-1.5">
+    <div className="absolute bottom-4 left-4 z-[1000] flex flex-col gap-1.5">
       <div className="bg-card-bg/90 backdrop-blur border border-border-line rounded-lg overflow-hidden flex flex-col shadow-lg">
         <button
           type="button"
@@ -164,7 +172,7 @@ function MapControls({ stations, onRecenter }: { stations: Station[]; onRecenter
 
 function MapLegend() {
   return (
-    <div className="absolute bottom-4 right-4 z-[500] bg-card-bg/90 backdrop-blur border border-border-line rounded-lg px-3 py-2 flex items-center gap-3 font-mono text-[10px] text-on-surface-variant shadow-lg">
+    <div className="absolute bottom-4 right-4 z-[1000] bg-card-bg/90 backdrop-blur border border-border-line rounded-lg px-3 py-2 flex items-center gap-3 font-mono text-[10px] text-on-surface-variant shadow-lg">
       <span className="flex items-center gap-1.5">
         <span className="w-2 h-2 rounded-full bg-primary-container" /> Online AWS
       </span>
@@ -219,7 +227,7 @@ function LocationSearchOverlay({
   }
 
   return (
-    <div ref={containerRef} className="absolute top-3 left-3 z-[500] w-60">
+    <div ref={containerRef} className="absolute top-3 left-3 z-[1000] w-60">
       <form onSubmit={handleSubmit} className="bg-card-bg/90 backdrop-blur border border-border-line rounded-xl p-1.5 flex gap-1">
         <input
           type="text"

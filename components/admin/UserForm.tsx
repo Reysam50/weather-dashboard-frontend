@@ -12,28 +12,21 @@ interface UserFormProps {
 }
 
 const ROLE_OPTIONS: { value: User["role"]; label: string }[] = [
-  { value: "station_operator", label: "Station Operator" },
+  { value: "station_operator", label: "Station Operator (Read/Calibrate)" },
   { value: "administrator", label: "Administrator" },
-  { value: "technical_team", label: "Technical Team" },
+  { value: "technical_team", label: "Technical Team (Full Write)" },
 ];
 
 /**
- * Add/edit user form — matches POST /users, PATCH /users/{id}, and
+ * Add/edit user modal — matches POST /users, PATCH /users/{id}, and
  * POST /users/{id}/stations (api-specification.md §3). Station assignment
  * only appears for Station Operator: per stakeholder-analysis.md,
- * Administrator/Technical Team already see every station, so assigning
- * them to specific ones wouldn't mean anything.
+ * Administrator/Technical Team already see every station.
  *
- * Reuses SearchableToggleList (built for the dashboard's comparison
- * pickers) for station assignment rather than a new multi-select control —
- * same "search + scrollable pill list" pattern applies here too.
+ * Same modal shell pattern as ProvisionStationModal/CalibrationDrawer on
+ * the Station Map screen.
  */
-export default function UserForm({
-  stations,
-  editingUser,
-  onSave,
-  onCancel,
-}: UserFormProps) {
+export default function UserForm({ stations, editingUser, onSave, onCancel }: UserFormProps) {
   const [name, setName] = useState(editingUser?.name ?? "");
   const [email, setEmail] = useState(editingUser?.email ?? "");
   const [role, setRole] = useState<User["role"]>(editingUser?.role ?? "station_operator");
@@ -60,82 +53,108 @@ export default function UserForm({
   }
 
   return (
-    <div className="bg-weather-card rounded-2xl border border-white/10 p-4 md:p-6">
-      <h2 className="text-sm font-semibold text-gray-200 mb-4">
-        {editingUser ? "Edit User" : "Add User"}
-      </h2>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      <button
+        type="button"
+        aria-label="Close user form"
+        onClick={onCancel}
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+      />
+      <div className="relative w-full max-w-lg bg-card-bg border border-border-hover rounded-2xl shadow-2xl">
+        <div className="p-5 border-b border-border-line flex items-start justify-between">
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="input-dark w-full px-3 py-2 rounded-lg text-sm text-white"
-            />
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary-container text-[20px]">
+                {editingUser ? "manage_accounts" : "person_add"}
+              </span>
+              {editingUser ? "Edit Permissions" : "Add New User"}
+            </h2>
+            <p className="text-xs font-mono text-on-surface-variant mt-1">
+              {editingUser ? editingUser.email : "Grant a new operator access to the network."}
+            </p>
           </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="input-dark w-full px-3 py-2 rounded-lg text-sm text-white"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Role</label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as User["role"])}
-            className="input-dark w-full sm:w-64 px-3 py-2 rounded-lg text-sm text-white"
-          >
-            {ROLE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {role === "station_operator" && (
-          <div>
-            <label className="block text-xs text-gray-400 mb-2">
-              Assigned Stations
-            </label>
-            <SearchableToggleList
-              title="Stations"
-              items={stations.map((s) => ({ id: s.id, label: s.name }))}
-              selectedIds={stationIds}
-              onToggle={toggleStation}
-              searchPlaceholder="Search stations..."
-            />
-          </div>
-        )}
-
-        <div className="flex gap-2 pt-2">
-          <button
-            type="submit"
-            disabled={!canSave}
-            className="btn-primary px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {editingUser ? "Save Changes" : "Add User"}
-          </button>
           <button
             type="button"
             onClick={onCancel}
-            className="px-5 py-2 rounded-lg border border-white/10 hover:bg-white/5 transition-colors text-sm"
+            className="text-on-surface-variant hover:text-white transition-colors"
+            aria-label="Close"
           >
-            Cancel
+            <span className="material-symbols-outlined">close</span>
           </button>
         </div>
-      </form>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="block">
+              <span className="text-xs font-mono font-semibold text-slate-300 block mb-1.5">Name</span>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className="w-full bg-[#080c14] border border-border-line rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-mono font-semibold text-slate-300 block mb-1.5">Email</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full bg-[#080c14] border border-border-line rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400"
+              />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="text-xs font-mono font-semibold text-slate-300 block mb-1.5">Security Role</span>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as User["role"])}
+              className="w-full bg-[#080c14] border border-border-line rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400"
+            >
+              {ROLE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {role === "station_operator" && (
+            <div>
+              <span className="text-xs font-mono font-semibold text-slate-300 block mb-2">
+                Assigned Stations
+              </span>
+              <SearchableToggleList
+                title="Stations"
+                items={stations.map((s) => ({ id: s.id, label: s.name }))}
+                selectedIds={stationIds}
+                onToggle={toggleStation}
+                searchPlaceholder="Search stations..."
+              />
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={!canSave}
+              className="flex-1 py-2.5 rounded-lg bg-primary-container text-slate-950 font-bold text-sm hover:bg-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {editingUser ? "Save Changes" : "Add User"}
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2.5 rounded-lg border border-border-line text-slate-300 hover:bg-slate-800/50 transition-colors text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

@@ -10,8 +10,8 @@ import type { Role } from "./navigation";
  * MobileNav.tsx) rather than merged into it, since the two navs genuinely
  * disagree on how many top-level destinations there are.
  *
- * Station Compare doesn't have a real route yet (that screen hasn't been
- * rebuilt), so its href is a placeholder until that screen's turn comes.
+ * Station Compare and Station Map both now have real routes (see
+ * app/(protected)/compare/page.tsx and app/(protected)/stations/page.tsx).
  */
 export interface HeaderNavItem {
   href: string;
@@ -28,7 +28,7 @@ export const HEADER_NAV_ITEMS: HeaderNavItem[] = [
     roles: ["station_operator", "administrator", "technical_team"],
   },
   {
-    href: "#",
+    href: "/compare",
     label: "Compare",
     dataPath: "multi-station-comparison",
     roles: ["administrator", "technical_team"],

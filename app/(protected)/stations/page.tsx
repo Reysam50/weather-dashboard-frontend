@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import StationInspectPod from "@/components/map/StationInspectPod";
 import FleetInventoryTable from "@/components/map/FleetInventoryTable";
@@ -9,6 +9,7 @@ import CalibrationDrawer from "@/components/map/CalibrationDrawer";
 import { useStationContext } from "@/lib/StationContext";
 import { CURRENT_ROLE, ROLE_LABELS } from "@/lib/mockAuth";
 import { DEFAULT_CALIBRATION, type CalibrationOffsets } from "@/lib/calibration";
+import { useAdminSettings } from "@/lib/AdminSettingsContext";
 import { getStationHardware } from "@/lib/stationHardware";
 import type { Station } from "@/lib/types";
 
@@ -45,7 +46,17 @@ export default function StationsPage() {
   const canManage = CURRENT_ROLE === "technical_team";
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [layer, setLayer] = useState<"dark" | "terrain">("dark");
+  const { settings } = useAdminSettings();
+  const [layer, setLayer] = useState<"dark" | "light" | "terrain">("dark");
+  // The basemap default is a real Admin setting (System & Map Preferences
+  // tab), shared live via AdminSettingsContext — so changing it there
+  // updates this screen immediately, with no reload or renavigation
+  // needed. Skips re-syncing while "terrain" is active so switching to
+  // Elevation Terrain here isn't silently undone by an unrelated settings
+  // change elsewhere.
+  useEffect(() => {
+    setLayer((current) => (current === "terrain" ? current : settings.mapTheme));
+  }, [settings.mapTheme]);
   const [isProvisioning, setIsProvisioning] = useState(false);
   const [calibratingStation, setCalibratingStation] = useState<Station | null>(null);
   const [calibrationOverrides, setCalibrationOverrides] = useState<
@@ -231,7 +242,13 @@ export default function StationsPage() {
       </div>
 
       {/* Map */}
-      <div className="relative h-[560px] rounded-2xl overflow-hidden border border-border-line bg-card-bg">
+      {/* `isolate` is the fix for the map covering the header: Leaflet's
+          own CSS gives its internal panes/controls z-index up to 1000,
+          and without a stacking context of its own here, those z-indices
+          compared directly against the header's z-50 and won. `isolate`
+          contains all of Leaflet's internal stacking inside this div, so
+          nothing it does can escape above page chrome outside this box. */}
+      <div className="relative isolate h-[560px] rounded-2xl overflow-hidden border border-border-line bg-card-bg">
         <StationMap
           stations={filteredStations}
           selectedStationId={selectedStationId}
