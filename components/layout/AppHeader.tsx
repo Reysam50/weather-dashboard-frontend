@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import LiveClock from "./LiveClock";
 import SseLatencyBadge from "./SseLatencyBadge";
 import StationDropdown from "./StationDropdown";
+import AccountMenu from "./AccountMenu";
 import { HEADER_NAV_ITEMS } from "@/lib/headerNav";
 import { CURRENT_ROLE, ROLE_LABELS } from "@/lib/mockAuth";
 import { PAGE_CONTAINER } from "@/lib/layout";
@@ -85,6 +86,8 @@ export default function AppHeader() {
             <span className="material-symbols-outlined text-[18px]">notifications</span>
             <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-rose-500 ring-2 ring-[#090d16]" />
           </button>
+
+          <AccountMenu />
         </div>
       </div>
     </header>
