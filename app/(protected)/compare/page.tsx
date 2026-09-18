@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useStationContext } from "@/lib/StationContext";
+import { useHydrated } from "@/lib/useHydrated";
 import { MOCK_STATION_DATA } from "@/lib/mockStationData";
 import { getStationHardware } from "@/lib/stationHardware";
 import {
@@ -54,7 +55,11 @@ export default function ComparePage() {
 
   const selectedStations = stations.filter((s) => selectedIds.includes(s.id));
   const colors = useMemo(() => assignStationColors(selectedStations), [selectedStations]);
-  const findings = useMemo(() => buildFindings(selectedStations), [selectedStations]);
+  const hydrated = useHydrated();
+  // buildFindings computes offline-duration text from Date.now(), which
+  // would otherwise mismatch between server render and client hydration
+  // (see lib/useHydrated.ts) — hold off until mounted.
+  const findings = useMemo(() => (hydrated ? buildFindings(selectedStations) : []), [selectedStations, hydrated]);
   const matrixRows = useMemo(() => buildMatrixRows(selectedStations), [selectedStations]);
 
   const onlineStations = selectedStations.filter((s) => s.status === "online");

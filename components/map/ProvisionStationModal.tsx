@@ -12,16 +12,22 @@ interface NewStationInput {
 const SENSOR_CHECKS = ["SHT31 [Air/Humidity]", "BMP280 [Barometric]", "Dual Rain Gauge Bus"];
 
 export default function ProvisionStationModal({
+  initialLatitude,
+  initialLongitude,
+  onRepickLocation,
   onSave,
   onClose,
 }: {
+  initialLatitude?: number;
+  initialLongitude?: number;
+  onRepickLocation: () => void;
   onSave: (station: NewStationInput) => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState("");
   const [particleDeviceId, setParticleDeviceId] = useState("");
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
+  const [latitude, setLatitude] = useState(initialLatitude !== undefined ? String(initialLatitude) : "");
+  const [longitude, setLongitude] = useState(initialLongitude !== undefined ? String(initialLongitude) : "");
   const [testState, setTestState] = useState<"idle" | "running" | "done">("idle");
   const [checkedCount, setCheckedCount] = useState(0);
 
@@ -125,33 +131,48 @@ export default function ProvisionStationModal({
             </div>
           </label>
 
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="text-xs font-mono font-semibold text-slate-300 block mb-1.5">
-                Latitude
+          <div className="p-3 rounded-lg bg-[#080c14] border border-border-line space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-semibold text-slate-300 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[16px] text-primary-container">pin_drop</span>
+                Location
               </span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={latitude}
-                onChange={(e) => setLatitude(e.target.value)}
-                placeholder="-15.3860"
-                className="w-full bg-[#080c14] border border-border-line rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-cyan-400"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-mono font-semibold text-slate-300 block mb-1.5">
-                Longitude
-              </span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={longitude}
-                onChange={(e) => setLongitude(e.target.value)}
-                placeholder="35.3182"
-                className="w-full bg-[#080c14] border border-border-line rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-cyan-400"
-              />
-            </label>
+              <button
+                type="button"
+                onClick={onRepickLocation}
+                className="text-[11px] font-mono px-2.5 py-1 rounded-md bg-card-bg-subtle border border-border-line text-primary-container hover:bg-slate-700 transition-colors flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[14px]">map</span>
+                Re-pick on Map
+              </button>
+            </div>
+            <p className="text-[10px] text-on-surface-variant -mt-1">
+              Picked by clicking the map. Fine-tune the coordinates below if needed.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-[10px] font-mono text-slate-400 block mb-1">Latitude</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={latitude}
+                  onChange={(e) => setLatitude(e.target.value)}
+                  placeholder="-15.3860"
+                  className="w-full bg-card-bg border border-border-line rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-cyan-400"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-mono text-slate-400 block mb-1">Longitude</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={longitude}
+                  onChange={(e) => setLongitude(e.target.value)}
+                  placeholder="35.3182"
+                  className="w-full bg-card-bg border border-border-line rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-cyan-400"
+                />
+              </label>
+            </div>
           </div>
 
           <div className="p-3 rounded-lg bg-[#080c14] border border-border-line">

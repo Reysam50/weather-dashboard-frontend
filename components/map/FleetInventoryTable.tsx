@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Station } from "@/lib/types";
 import { getStationHardware } from "@/lib/stationHardware";
 import { formatTimeAgoPrecise } from "@/lib/formatTimeAgo";
+import { useHydrated } from "@/lib/useHydrated";
 import type { CalibrationOffsets } from "@/lib/calibration";
 
 export default function FleetInventoryTable({
@@ -21,6 +22,7 @@ export default function FleetInventoryTable({
   onExportCsv: () => void;
   onSyncFleet: () => void;
 }) {
+  const hydrated = useHydrated();
   const [pingingId, setPingingId] = useState<string | null>(null);
   const [pingResult, setPingResult] = useState<Record<string, number>>({});
   const [syncing, setSyncing] = useState(false);
@@ -167,7 +169,7 @@ export default function FleetInventoryTable({
                             offline ? "bg-error" : "bg-primary-container animate-ping"
                           }`}
                         />
-                        {offline ? "OFFLINE" : "ONLINE"} ({formatTimeAgoPrecise(station.lastSeenAt)})
+                        {offline ? "OFFLINE" : "ONLINE"} ({hydrated ? formatTimeAgoPrecise(station.lastSeenAt) : "…"})
                       </span>
                       <span className={`text-[11px] ${offline ? "text-error" : "text-on-surface-variant"}`}>
                         {hw.ingestMethod}

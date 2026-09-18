@@ -6,6 +6,7 @@ import type { Station } from "@/lib/types";
 import { MOCK_STATION_DATA } from "@/lib/mockStationData";
 import { getLiveTelemetryExtras } from "@/lib/liveTelemetryData";
 import { formatTimeAgoPrecise } from "@/lib/formatTimeAgo";
+import { useHydrated } from "@/lib/useHydrated";
 import { scaleSeries, smoothLinePath, areaPath } from "@/lib/chartPaths";
 
 export default function StationInspectPod({
@@ -17,6 +18,7 @@ export default function StationInspectPod({
 }) {
   const [pingState, setPingState] = useState<"idle" | "pinging" | "done">("idle");
   const [pingMs, setPingMs] = useState(0);
+  const hydrated = useHydrated();
 
   const data = MOCK_STATION_DATA[station.id];
   const isOffline = station.status === "offline";
@@ -76,7 +78,7 @@ export default function StationInspectPod({
         <div className="bg-card-bg-subtle p-2 rounded border border-border-line">
           <span className="text-[10px] text-on-surface-variant block">LAST SEEN</span>
           <span className="text-white font-semibold">
-            {formatTimeAgoPrecise(station.lastSeenAt)}
+            {hydrated ? formatTimeAgoPrecise(station.lastSeenAt) : "…"}
           </span>
         </div>
         <div className="bg-card-bg-subtle p-2 rounded border border-border-line col-span-2">

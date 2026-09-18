@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import type { LiveTelemetryExtras } from "@/lib/liveTelemetryData";
+import { useHydrated } from "@/lib/useHydrated";
 
 const PAGE_SIZE = 5;
 
 export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExtras }) {
+  const hydrated = useHydrated();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [exportOpen, setExportOpen] = useState(false);
@@ -105,7 +107,7 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
                   className={isLive ? "bg-cyan-500/[0.04] hover:bg-cyan-500/[0.08] transition-colors" : "hover:bg-slate-800/40 transition-colors"}
                 >
                   <td className="py-4 px-5 font-bold text-cyan-300 flex items-center gap-2">
-                    <span>{row.time}</span>
+                    <span>{hydrated ? row.time : "--:--:--"}</span>
                     {isLive && (
                       <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[9px] font-extrabold">
                         LIVE

@@ -1,8 +1,11 @@
+"use client";
+
 import type { Station } from "@/lib/types";
 import { MOCK_STATION_DATA } from "@/lib/mockStationData";
 import { getStationHardware } from "@/lib/stationHardware";
 import { formatTimeAgoPrecise } from "@/lib/formatTimeAgo";
 import { formatOfflineDuration } from "@/lib/compareData";
+import { useHydrated } from "@/lib/useHydrated";
 
 export default function StationSummaryCards({
   stations,
@@ -13,6 +16,7 @@ export default function StationSummaryCards({
   colors: Record<string, string>;
   onRemove: (id: string) => void;
 }) {
+  const hydrated = useHydrated();
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
       {stations.map((station) => {
@@ -58,7 +62,7 @@ export default function StationSummaryCards({
                   offline ? "bg-error/15 text-error" : "bg-card-bg-subtle text-primary-container"
                 }`}
               >
-                {offline ? `Offline (${formatOfflineDuration(station.lastSeenAt)})` : `AWS #${station.id.padStart(2, "0")} // ${hw.terrainLabel}`}
+                {offline ? `Offline (${hydrated ? formatOfflineDuration(station.lastSeenAt) : "…"})` : `AWS #${station.id.padStart(2, "0")} // ${hw.terrainLabel}`}
               </span>
             </div>
 
@@ -88,14 +92,14 @@ export default function StationSummaryCards({
                       Synthetic fallback active
                     </span>
                     <span className="text-[10px] text-on-surface-variant">
-                      Last: {formatTimeAgoPrecise(station.lastSeenAt)}
+                      Last: {hydrated ? formatTimeAgoPrecise(station.lastSeenAt) : "…"}
                     </span>
                   </>
                 ) : (
                   <>
                     <span className="text-[10px] flex items-center gap-1" style={{ color }}>
                       <span className="material-symbols-outlined text-[12px]">sensors</span>
-                      Sync: {formatTimeAgoPrecise(station.lastSeenAt)}
+                      Sync: {hydrated ? formatTimeAgoPrecise(station.lastSeenAt) : "…"}
                     </span>
                     <span className="text-[10px] text-on-surface-variant">Signal: {hw.signalPct}%</span>
                   </>

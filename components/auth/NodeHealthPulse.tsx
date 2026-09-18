@@ -1,9 +1,13 @@
+"use client";
+
 import { mockStations } from "@/lib/mockStations";
 import { MOCK_STATION_DATA } from "@/lib/mockStationData";
 import { formatTimeAgoPrecise } from "@/lib/formatTimeAgo";
 import { scaleSeries, smoothLinePath } from "@/lib/chartPaths";
+import { useHydrated } from "@/lib/useHydrated";
 
 export default function NodeHealthPulse() {
+  const hydrated = useHydrated();
   const primary = mockStations.find((s) => s.status === "online") ?? mockStations[0];
   const pressureHistory = primary ? MOCK_STATION_DATA[primary.id]?.pressureHistory ?? [] : [];
   const points = scaleSeries(pressureHistory, 320, 60, 4);
@@ -43,7 +47,7 @@ export default function NodeHealthPulse() {
                       offline ? "text-error" : "text-primary-container"
                     }`}
                   >
-                    {offline ? "OFFLINE" : "ONLINE"} ({formatTimeAgoPrecise(station.lastSeenAt)})
+                    {offline ? "OFFLINE" : "ONLINE"} ({hydrated ? formatTimeAgoPrecise(station.lastSeenAt) : "—"})
                   </span>
                 </div>
                 {data && (

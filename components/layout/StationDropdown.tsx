@@ -2,6 +2,7 @@
 
 import { useStationContext } from "@/lib/StationContext";
 import { formatTimeAgoPrecise } from "@/lib/formatTimeAgo";
+import { useHydrated } from "@/lib/useHydrated";
 
 /**
  * Header station picker — the Live Telemetry redesign puts this in the top
@@ -18,6 +19,7 @@ import { formatTimeAgoPrecise } from "@/lib/formatTimeAgo";
 export default function StationDropdown() {
   const { stations, selectedStationId, setSelectedStationId, canSelectStation } =
     useStationContext();
+  const hydrated = useHydrated();
 
   if (!canSelectStation) return null;
 
@@ -35,7 +37,7 @@ export default function StationDropdown() {
           <option key={station.id} className="bg-card-bg text-white" value={station.id}>
             {station.status === "offline"
               ? `${station.name} [Offline]`
-              : `${station.name} [${formatTimeAgoPrecise(station.lastSeenAt)}]`}
+              : `${station.name} [${hydrated ? formatTimeAgoPrecise(station.lastSeenAt) : "…"}]`}
           </option>
         ))}
       </select>

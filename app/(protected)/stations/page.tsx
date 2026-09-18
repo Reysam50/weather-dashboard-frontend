@@ -58,6 +58,8 @@ export default function StationsPage() {
     setLayer((current) => (current === "terrain" ? current : settings.mapTheme));
   }, [settings.mapTheme]);
   const [isProvisioning, setIsProvisioning] = useState(false);
+  const [isPlacingStation, setIsPlacingStation] = useState(false);
+  const [pendingCoords, setPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [calibratingStation, setCalibratingStation] = useState<Station | null>(null);
   const [calibrationOverrides, setCalibrationOverrides] = useState<
     Record<string, CalibrationOffsets>
@@ -84,6 +86,17 @@ export default function StationsPage() {
         }
       : { lat: -15.7861, lng: 35.0058 };
 
+  function handleMapClickForPlacement(lat: number, lng: number) {
+    setPendingCoords({ lat, lng });
+    setIsPlacingStation(false);
+    setIsProvisioning(true);
+  }
+
+  function handleRepickLocation() {
+    setIsProvisioning(false);
+    setIsPlacingStation(true);
+  }
+
   function handleSaveStation(newStation: {
     name: string;
     particleDeviceId: string;
@@ -99,6 +112,7 @@ export default function StationsPage() {
     setStations((prev) => [...prev, station]);
     setSelectedStationId(station.id);
     setIsProvisioning(false);
+    setPendingCoords(null);
   }
 
   function handleCalibrateSave(stationId: string, offsets: CalibrationOffsets) {
@@ -232,11 +246,15 @@ export default function StationsPage() {
         {canManage && (
           <button
             type="button"
-            onClick={() => setIsProvisioning(true)}
-            className="px-4 py-2.5 rounded-xl bg-primary-container hover:bg-primary text-slate-950 font-bold text-sm flex items-center gap-1.5 transition-colors shadow-md"
+            onClick={() => {
+              setPendingCoords(null);
+              setIsPlacingStation(true);
+            }}
+            disabled={isPlacingStation}
+            className="px-4 py-2.5 rounded-xl bg-primary-container hover:bg-primary text-slate-950 font-bold text-sm flex items-center gap-1.5 transition-colors shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-[18px]">add_circle</span>
-            Provision New AWS Station
+            {isPlacingStation ? "Click the map to place it…" : "Provision New AWS Station"}
           </button>
         )}
       </div>
@@ -249,10 +267,27 @@ export default function StationsPage() {
           contains all of Leaflet's internal stacking inside this div, so
           nothing it does can escape above page chrome outside this box. */}
       <div className="relative isolate h-[560px] rounded-2xl overflow-hidden border border-border-line bg-card-bg">
+        {isPlacingStation && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 bg-card-bg/95 backdrop-blur-md border border-cyan-500/40 rounded-xl px-4 py-2.5 shadow-2xl">
+            <span className="material-symbols-outlined text-[18px] text-primary-container animate-pulse">
+              pin_drop
+            </span>
+            <span className="text-sm text-white font-medium">Click the map to place the new station</span>
+            <button
+              type="button"
+              onClick={() => setIsPlacingStation(false)}
+              className="ml-2 px-2.5 py-1 rounded-lg bg-card-bg-subtle hover:bg-slate-700 text-slate-300 text-xs font-mono transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         <StationMap
           stations={filteredStations}
           selectedStationId={selectedStationId}
           onSelectStation={setSelectedStationId}
+          onMapClick={isPlacingStation ? handleMapClickForPlacement : undefined}
+          pendingMarker={pendingCoords}
           mapTheme={layer === "dark" ? "dark" : "light"}
           terrainMode={layer === "terrain"}
           showControls
@@ -260,7 +295,7 @@ export default function StationsPage() {
           recenterSignal={recenterSignal}
           onRecenterClick={() => setRecenterSignal((n) => n + 1)}
         />
-        {selectedStation && (
+        {selectedStation && !isPlacingStation && (
           <StationInspectPod station={selectedStation} onCalibrate={setCalibratingStation} />
         )}
       </div>
@@ -276,7 +311,16 @@ export default function StationsPage() {
       />
 
       {isProvisioning && (
-        <ProvisionStationModal onSave={handleSaveStation} onClose={() => setIsProvisioning(false)} />
+        <ProvisionStationModal
+          initialLatitude={pendingCoords?.lat}
+          initialLongitude={pendingCoords?.lng}
+          onRepickLocation={handleRepickLocation}
+          onSave={handleSaveStation}
+          onClose={() => {
+            setIsProvisioning(false);
+            setPendingCoords(null);
+          }}
+        />
       )}
 
       {calibratingStation && (
