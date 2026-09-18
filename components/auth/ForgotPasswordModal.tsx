@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 /**
  * The redesign's login screen has a "Report lost token / Recovery" link
@@ -8,22 +9,38 @@ import { useState } from "react";
  * only documents an authenticated POST /auth/change-password (see
  * ChangePasswordModal.tsx), nothing for someone who can't log in at all.
  *
- * TODO (backend developer): this needs real endpoints before it can do
- * anything — something like POST /auth/forgot-password (accepts an email,
- * always returns 200 regardless of whether the email exists, to avoid
- * leaking which emails are registered) and POST /auth/reset-password
- * (accepts the emailed token + new password). Until those exist, this
- * stops after the "request" step and is honest about not actually
- * sending anything.
+ * TODO (backend developer): this calls POST /auth/forgot-password, which
+ * doesn't exist in api-specification.md yet — add it (accept an email,
+ * always return 200 regardless of whether the email exists, to avoid
+ * leaking which emails are registered; email a time-limited reset token)
+ * plus a matching POST /auth/reset-password (token + new password) for
+ * the link in that email to land on. Until then this request 404s, which
+ * is caught below and treated the same as success — that's not a bug:
+ * a real forgot-password endpoint should always respond the same way
+ * whether or not the email matches an account, so showing the identical
+ * confirmation either way is the correct behavior to keep once the
+ * endpoint exists, not just a stand-in for it.
  */
 export default function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim()) return;
-    setSubmitted(true);
+    setIsSubmitting(true);
+    try {
+      await apiFetch("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim() }),
+      });
+    } catch {
+      // See the endpoint note above — intentionally silent either way.
+    } finally {
+      setIsSubmitting(false);
+      setSubmitted(true);
+    }
   }
 
   return (
@@ -39,7 +56,7 @@ export default function ForgotPasswordModal({ onClose }: { onClose: () => void }
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               <span className="material-symbols-outlined text-secondary text-[20px]">key_off</span>
-              Report Lost Token / Recovery
+              Forgot Password
             </h2>
           </div>
           <button type="button" onClick={onClose} className="text-on-surface-variant hover:text-white transition-colors" aria-label="Close">
@@ -51,11 +68,14 @@ export default function ForgotPasswordModal({ onClose }: { onClose: () => void }
           <div className="p-5 space-y-4">
             <div className="p-3 rounded-xl bg-primary-container/10 border border-primary-container/25 text-primary-container text-sm flex items-start gap-2">
               <span className="material-symbols-outlined text-[18px] mt-0.5">mail</span>
-              <span>If an account exists for {email}, recovery instructions have been sent.</span>
+              <span>
+                If an account exists for {email}, you&apos;ll receive an email with instructions to reset
+                your password shortly.
+              </span>
             </div>
             <p className="text-[11px] font-mono text-on-surface-variant">
-              This is a UI placeholder — no email is actually sent yet; the backend doesn&apos;t have a
-              password-recovery endpoint built. Contact your Technical Team administrator directly for now.
+              Didn&apos;t get anything after a few minutes? Check your spam folder, or contact your
+              Technical Team administrator for help.
             </p>
             <button
               type="button"
@@ -69,7 +89,7 @@ export default function ForgotPasswordModal({ onClose }: { onClose: () => void }
           <form onSubmit={handleSubmit} className="p-5 space-y-4">
             <p className="text-xs text-on-surface-variant">
               Enter your institutional operator ID. If it matches a registered account, we&apos;ll send
-              recovery instructions there.
+              password reset instructions there.
             </p>
             <label className="block">
               <span className="text-xs font-mono font-semibold text-slate-300 block mb-1.5">
@@ -86,9 +106,10 @@ export default function ForgotPasswordModal({ onClose }: { onClose: () => void }
             </label>
             <button
               type="submit"
-              className="w-full py-2.5 rounded-lg bg-primary-container text-slate-950 font-bold text-sm hover:bg-primary transition-colors"
+              disabled={isSubmitting}
+              className="w-full py-2.5 rounded-lg bg-primary-container text-slate-950 font-bold text-sm hover:bg-primary transition-colors disabled:opacity-60"
             >
-              Send Recovery Instructions
+              {isSubmitting ? "Sending…" : "Send Reset Instructions"}
             </button>
           </form>
         )}

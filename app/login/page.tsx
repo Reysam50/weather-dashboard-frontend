@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
 import NodeHealthPulse from "@/components/auth/NodeHealthPulse";
 import ForgotPasswordModal from "@/components/auth/ForgotPasswordModal";
+import WeatherStationIllustration from "@/components/auth/WeatherStationIllustration";
 
 type AuthTab = "password" | "fido2" | "mtls";
 
@@ -22,12 +23,14 @@ type AuthTab = "password" | "fido2" | "mtls";
  * - "AWS Telemetry Ingest Target" station picker — station access is
  *   determined server-side by the user's role/assignment, not chosen at
  *   login time.
- * - The design's live mast-cam thumbnail — a real still/video feed with
- *   no source to point it at would just be a fake photo, so it's replaced
- *   with an honest static panel instead.
  * Security Key (FIDO2) and mTLS Emergency Bypass tabs are shown (matching
  * the design) but disabled, same reasoning — no WebAuthn/mTLS backend
- * exists yet. Same for the two SSO buttons at the bottom.
+ * exists yet.
+ *
+ * The design's live mast-cam thumbnail is a real photo with no source to
+ * point it at — replaced with an original decorative SVG illustration
+ * instead (WeatherStationIllustration.tsx) rather than reproducing the
+ * design's stock image.
  */
 export default function LoginPage() {
   const router = useRouter();
@@ -79,7 +82,7 @@ export default function LoginPage() {
               </span>
             </div>
             <span className="text-[11px] font-mono text-on-surface-variant">
-              Automatic Weather Station (AWS) Telemetry Network // Ops Bridge
+              Automatic Weather Station (AWS) Telemetry Network
             </span>
           </div>
         </div>
@@ -97,10 +100,10 @@ export default function LoginPage() {
       <div className="max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 flex-1">
         {/* Left column */}
         <div className="flex flex-col gap-4">
-          <div className="bg-card-bg rounded-xl border border-border-line p-5 flex flex-col items-center justify-center text-center gap-2 min-h-[160px]">
-            <span className="material-symbols-outlined text-[32px] text-slate-600">videocam_off</span>
-            <span className="font-mono text-[11px] text-on-surface-variant">
-              Live mast camera feed not connected
+          <div className="bg-card-bg rounded-xl border border-border-line p-4 overflow-hidden">
+            <WeatherStationIllustration />
+            <span className="font-mono text-[10px] text-on-surface-variant block text-center mt-2">
+              Observation Site — Zomba Plateau Ridge
             </span>
           </div>
           <NodeHealthPulse />
@@ -159,7 +162,8 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <label className="block">
-              <span className="text-xs font-mono font-semibold text-slate-300 block mb-1.5">
+              <span className="text-xs font-mono font-semibold text-slate-300 flex items-center gap-1.5 mb-1.5">
+                <span className="material-symbols-outlined text-[15px] text-primary-container">badge</span>
                 Institutional Identity / Operator ID
               </span>
               <input
@@ -175,7 +179,10 @@ export default function LoginPage() {
             </label>
 
             <label className="block">
-              <span className="text-xs font-mono font-semibold text-slate-300 block mb-1.5">Cryptographic Passphrase</span>
+              <span className="text-xs font-mono font-semibold text-slate-300 flex items-center gap-1.5 mb-1.5">
+                <span className="material-symbols-outlined text-[15px] text-primary-container">lock</span>
+                Cryptographic Passphrase
+              </span>
               <input
                 type="password"
                 value={password}
@@ -201,7 +208,7 @@ export default function LoginPage() {
                 onClick={() => setShowForgotPassword(true)}
                 className="text-xs font-mono text-primary-container hover:text-primary underline underline-offset-2"
               >
-                Report lost token / Recovery
+                Forgot Password
               </button>
             </div>
 
@@ -214,33 +221,6 @@ export default function LoginPage() {
               {isSubmitting ? "Authenticating…" : "Authenticate & Enter Telemetry Ops Bridge"}
             </button>
           </form>
-
-          <div className="flex items-center gap-3 text-on-surface-variant">
-            <div className="flex-1 h-px bg-border-line" />
-            <span className="text-[10px] font-mono">OR FEDERATE VIA AUTHORIZED INSTITUTION</span>
-            <div className="flex-1 h-px bg-border-line" />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <button
-              type="button"
-              disabled
-              title="Institutional SSO isn't connected yet"
-              className="py-2.5 rounded-lg border border-border-line text-slate-600 font-mono text-xs cursor-not-allowed flex items-center justify-center gap-1.5"
-            >
-              <span className="material-symbols-outlined text-[15px]">school</span>
-              UNIMA Institutional SSO
-            </button>
-            <button
-              type="button"
-              disabled
-              title="Gov OIDC gateway isn't connected yet"
-              className="py-2.5 rounded-lg border border-border-line text-slate-600 font-mono text-xs cursor-not-allowed flex items-center justify-center gap-1.5"
-            >
-              <span className="material-symbols-outlined text-[15px]">account_balance</span>
-              Malawi Gov OIDC Gateway
-            </button>
-          </div>
         </div>
       </div>
 
@@ -248,8 +228,8 @@ export default function LoginPage() {
       <div className="max-w-6xl w-full mx-auto bg-[#080c14] border border-border-line rounded-xl px-5 py-3 flex items-start gap-2.5">
         <span className="material-symbols-outlined text-[16px] text-secondary mt-0.5">warning</span>
         <p className="text-[11px] font-mono text-on-surface-variant leading-relaxed">
-          Unauthorized access prohibited // WMO &amp; Malawian Meteorological Service data governance. All
-          telemetry ingest access requests and IP footprints are recorded to audit journals.
+          Unauthorized access prohibited. All telemetry ingest access requests and IP footprints are
+          recorded to audit journals.
         </p>
       </div>
 

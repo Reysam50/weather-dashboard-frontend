@@ -1,21 +1,23 @@
 export type Role = "technical_team" | "administrator" | "station_operator";
 
-/**
- * TODO (frontend developer): replace both of these with real values from
- * GET /auth/me once the login flow is fully wired up
- * (system-architecture.md §5, api-specification.md §2).
- *
- * Centralized here so every page/component that needs "who is the current
- * user" reads from one place — previously CURRENT_ROLE was declared
- * locally inside the dashboard page, which would have meant copy-pasting
- * it (and inevitably letting it drift) into the reports page too.
- */
-export const CURRENT_ROLE: Role = "technical_team";
-export const ASSIGNED_STATION_ID = "1"; // only relevant when CURRENT_ROLE is "station_operator"
-
-/** Display label for the header's role badge. */
+/** Display label for the header's role badge and account menu. */
 export const ROLE_LABELS: Record<Role, string> = {
   technical_team: "Tech Team",
   administrator: "Administrator",
   station_operator: "Operator",
+};
+
+/**
+ * Dev-mode fallback user, used only when there's no backend to answer
+ * GET /auth/me yet (see app/(protected)/layout.tsx). Every screen reads
+ * the current user from lib/AuthContext.tsx's useAuth() now, not from
+ * here directly — this just supplies what that context falls back to.
+ * Once a real backend exists, this stops being used automatically; no
+ * screen code needs to change.
+ */
+export const MOCK_FALLBACK_USER = {
+  id: "mock-user",
+  email: "kai@caizwork.mw",
+  role: "technical_team" as Role,
+  stations: "all" as const,
 };

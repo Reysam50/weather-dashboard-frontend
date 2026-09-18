@@ -3,7 +3,7 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import type { Station } from "./types";
 import { mockStations } from "./mockStations";
-import { CURRENT_ROLE, ASSIGNED_STATION_ID } from "./mockAuth";
+import { useAuth } from "./AuthContext";
 
 /**
  * The redesign puts the station picker in the header (AppHeader.tsx) instead
@@ -30,11 +30,14 @@ interface StationContextValue {
 const StationContext = createContext<StationContextValue | null>(null);
 
 export function StationProvider({ children }: { children: React.ReactNode }) {
-  const canSelectStation = CURRENT_ROLE !== "station_operator";
+  const { user } = useAuth();
+  const canSelectStation = user.role !== "station_operator";
+  const assignedStationId =
+    user.stations !== "all" && user.stations.length > 0 ? user.stations[0] : mockStations[0]?.id ?? "1";
 
   const [stations, setStations] = useState<Station[]>(mockStations);
   const [selectedStationId, setSelectedStationIdState] = useState<string>(
-    canSelectStation ? mockStations[0]?.id ?? "1" : ASSIGNED_STATION_ID
+    canSelectStation ? mockStations[0]?.id ?? "1" : assignedStationId
   );
 
   function setSelectedStationId(id: string) {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "@/lib/navigation";
-import { CURRENT_ROLE } from "@/lib/mockAuth";
+import { useAuth } from "@/lib/AuthContext";
 
 /**
  * Fixed bottom nav bar for small screens — icon + label per item, active
@@ -58,7 +58,8 @@ const ICONS: Record<string, React.ReactNode> = {
 
 export default function MobileNav() {
   const pathname = usePathname();
-  const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(CURRENT_ROLE));
+  const { user } = useAuth();
+  const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
 
   return (
     <nav className="glass border-t border-white/10 fixed bottom-0 left-0 right-0 lg:hidden z-50">

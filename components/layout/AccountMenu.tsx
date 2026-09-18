@@ -3,22 +3,38 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { CURRENT_ROLE, ROLE_LABELS } from "@/lib/mockAuth";
+import { ROLE_LABELS } from "@/lib/mockAuth";
+import { useAuth } from "@/lib/AuthContext";
+import { mockStations } from "@/lib/mockStations";
 import ChangePasswordModal from "@/components/auth/ChangePasswordModal";
 
+function initials(email: string) {
+  const namePart = email.split("@")[0];
+  return namePart.slice(0, 2).toUpperCase();
+}
+
 /**
- * Distinct from the plain decorative avatar removed from the header
- * earlier — this one has a real job now that Change Password
- * (POST /auth/change-password) and Log Out (POST /auth/logout) both hit
- * the actual backend. Added here rather than reviving the old avatar
- * spot, since neither of those actions existed anywhere in the app until
- * now.
+ * Account menu — the only place to reach Change Password
+ * (POST /auth/change-password) and Log Out (POST /auth/logout), both
+ * wired to the real backend. Also shows the real signed-in identity and
+ * station access scope from GET /auth/me (lib/AuthContext.tsx), rather
+ * than just a role label.
  */
 export default function AccountMenu() {
+  const { user } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const stationAccessLabel =
+    user.stations === "all"
+      ? "All Stations (Network Wide)"
+      : user.stations.length === 0
+      ? "No stations assigned"
+      : user.stations
+          .map((id) => mockStations.find((s) => s.id === id)?.name ?? id)
+          .join(", ");
 
   async function handleLogout() {
     setIsLoggingOut(true);
@@ -37,10 +53,10 @@ export default function AccountMenu() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-500 border border-cyan-400/30 flex items-center justify-center text-white shadow-[0_0_12px_rgba(0,229,255,0.2)] flex-shrink-0"
+        className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-500 border border-cyan-400/30 flex items-center justify-center text-white font-mono text-xs font-bold shadow-[0_0_12px_rgba(0,229,255,0.2)] flex-shrink-0"
         aria-label="Account menu"
       >
-        <span className="material-symbols-outlined text-[18px]">person</span>
+        {initials(user.email)}
       </button>
 
       {open && (
@@ -51,10 +67,14 @@ export default function AccountMenu() {
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-40"
           />
-          <div className="absolute right-0 mt-2 w-52 rounded-xl bg-[#141b2e] border border-border-line shadow-2xl z-50 py-2 font-mono text-xs">
-            <div className="px-4 py-2 border-b border-border-line">
-              <span className="text-white font-semibold block">{ROLE_LABELS[CURRENT_ROLE]}</span>
-              <span className="text-on-surface-variant text-[10px]">Signed in</span>
+          <div className="absolute right-0 mt-2 w-64 rounded-xl bg-[#141b2e] border border-border-line shadow-2xl z-50 py-2 font-mono text-xs">
+            <div className="px-4 py-2.5 border-b border-border-line">
+              <span className="text-white font-semibold block truncate">{user.email}</span>
+              <span className="text-primary-container text-[10px] block mt-0.5">{ROLE_LABELS[user.role]}</span>
+            </div>
+            <div className="px-4 py-2.5 border-b border-border-line">
+              <span className="text-on-surface-variant text-[10px] uppercase block mb-0.5">Station Access</span>
+              <span className="text-slate-200 text-[11px] block">{stationAccessLabel}</span>
             </div>
             <button
               type="button"

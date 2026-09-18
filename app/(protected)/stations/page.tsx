@@ -7,7 +7,8 @@ import FleetInventoryTable from "@/components/map/FleetInventoryTable";
 import ProvisionStationModal from "@/components/map/ProvisionStationModal";
 import CalibrationDrawer from "@/components/map/CalibrationDrawer";
 import { useStationContext } from "@/lib/StationContext";
-import { CURRENT_ROLE, ROLE_LABELS } from "@/lib/mockAuth";
+import { ROLE_LABELS } from "@/lib/mockAuth";
+import { useAuth } from "@/lib/AuthContext";
 import { DEFAULT_CALIBRATION, type CalibrationOffsets } from "@/lib/calibration";
 import { useAdminSettings } from "@/lib/AdminSettingsContext";
 import { getStationHardware } from "@/lib/stationHardware";
@@ -41,9 +42,10 @@ const StationMap = dynamic(() => import("@/components/map/StationMap"), {
  * sidebar entirely.
  */
 export default function StationsPage() {
+  const { user } = useAuth();
   const { stations, setStations, selectedStationId, setSelectedStationId } = useStationContext();
 
-  const canManage = CURRENT_ROLE === "technical_team";
+  const canManage = user.role === "technical_team";
 
   const [searchQuery, setSearchQuery] = useState("");
   const { settings } = useAdminSettings();
@@ -183,7 +185,7 @@ export default function StationsPage() {
           </span>
         </div>
         <span className="px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-secondary font-semibold">
-          ROLE: {ROLE_LABELS[CURRENT_ROLE]} ({canManage ? "Full Write" : "Read Only"})
+          ROLE: {ROLE_LABELS[user.role]} ({canManage ? "Full Write" : "Read Only"})
         </span>
       </div>
 

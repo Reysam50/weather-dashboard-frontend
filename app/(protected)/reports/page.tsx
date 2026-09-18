@@ -7,7 +7,7 @@ import GeneratedReportsCard from "@/components/reports/GeneratedReportsCard";
 import ManualRecoveryUploadCard from "@/components/reports/ManualRecoveryUploadCard";
 import { mockStations } from "@/lib/mockStations";
 import { mockSchedules, mockGeneratedReports } from "@/lib/mockReports";
-import { CURRENT_ROLE, ASSIGNED_STATION_ID } from "@/lib/mockAuth";
+import { useAuth } from "@/lib/AuthContext";
 import type { ReportSchedule } from "@/lib/types";
 
 /**
@@ -33,10 +33,13 @@ import type { ReportSchedule } from "@/lib/types";
  *   handleDeleteSchedule to DELETE /reports/schedules/{id}
  */
 export default function ReportsPage() {
-  const allowAllStations = CURRENT_ROLE !== "station_operator";
-  const canRecoverData = CURRENT_ROLE === "technical_team";
+  const { user } = useAuth();
+  const allowAllStations = user.role !== "station_operator";
+  const canRecoverData = user.role === "technical_team";
   const defaultStationId =
-    CURRENT_ROLE === "station_operator" ? ASSIGNED_STATION_ID : mockStations[0]?.id ?? "1";
+    user.role === "station_operator" && user.stations !== "all" && user.stations.length > 0
+      ? user.stations[0]
+      : mockStations[0]?.id ?? "1";
 
   const [schedules, setSchedules] = useState<ReportSchedule[]>(mockSchedules);
 

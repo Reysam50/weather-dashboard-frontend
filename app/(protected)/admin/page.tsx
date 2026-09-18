@@ -12,7 +12,8 @@ import type { User } from "@/lib/types";
 import { type AdminSettings } from "@/lib/adminSettings";
 import { useAdminSettings } from "@/lib/AdminSettingsContext";
 import { SEED_AUDIT_LOG, newAuditEntry, type AuditEntry } from "@/lib/auditLog";
-import { CURRENT_ROLE, ROLE_LABELS } from "@/lib/mockAuth";
+import { ROLE_LABELS } from "@/lib/mockAuth";
+import { useAuth } from "@/lib/AuthContext";
 
 /**
  * Admin & Access — rebuilt to match admin_access_control_panel_redesigned.
@@ -44,6 +45,7 @@ import { CURRENT_ROLE, ROLE_LABELS } from "@/lib/mockAuth";
 type Tab = "rbac" | "system" | "audit";
 
 export default function AdminPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("rbac");
 
   const [users, setUsers] = useState<User[]>(mockUsers);
@@ -188,7 +190,7 @@ export default function AdminPage() {
             <span className="text-[11px] font-semibold text-primary-container">SYSTEM HEALTH: OPTIMAL</span>
           </div>
           <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-secondary font-semibold">
-            {ROLE_LABELS[CURRENT_ROLE]}
+            {ROLE_LABELS[user.role]}
           </span>
         </div>
       </div>

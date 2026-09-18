@@ -1,13 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LiveClock from "./LiveClock";
-import SseLatencyBadge from "./SseLatencyBadge";
 import StationDropdown from "./StationDropdown";
+import NotificationsPanel from "./NotificationsPanel";
 import AccountMenu from "./AccountMenu";
 import { HEADER_NAV_ITEMS } from "@/lib/headerNav";
-import { CURRENT_ROLE, ROLE_LABELS } from "@/lib/mockAuth";
+import { ROLE_LABELS } from "@/lib/mockAuth";
+import { useAuth } from "@/lib/AuthContext";
+import { useNotifications } from "@/lib/NotificationsContext";
 import { PAGE_CONTAINER } from "@/lib/layout";
 
 /**
@@ -22,10 +25,17 @@ import { PAGE_CONTAINER } from "@/lib/layout";
  * mobile bottom nav (MobileNav.tsx) is unaffected — it still reads from its
  * own lib/navigation.ts, which intentionally lists fewer/different items
  * than HEADER_NAV_ITEMS below (see headerNav.ts's comment for why).
+ *
+ * Role now comes from the real GET /auth/me response (lib/AuthContext.tsx)
+ * instead of a hardcoded constant, so nav visibility and the role badge
+ * genuinely reflect who's logged in.
  */
 export default function AppHeader() {
   const pathname = usePathname();
-  const visibleNavItems = HEADER_NAV_ITEMS.filter((item) => item.roles.includes(CURRENT_ROLE));
+  const { user } = useAuth();
+  const { unreadCount } = useNotifications();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const visibleNavItems = HEADER_NAV_ITEMS.filter((item) => item.roles.includes(user.role));
 
   return (
     <header className="sticky top-0 z-50 w-full bg-[#090d16]/95 backdrop-blur-md border-b border-border-line">
@@ -71,25 +81,29 @@ export default function AppHeader() {
         <div className="flex items-center gap-2.5 flex-shrink-0">
           <StationDropdown />
           <LiveClock />
-          <SseLatencyBadge />
 
           <div className="hidden xl:flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20 text-secondary font-mono text-xs font-semibold">
             <span className="material-symbols-outlined text-[15px]">shield</span>
-            <span>{ROLE_LABELS[CURRENT_ROLE]}</span>
+            <span>{ROLE_LABELS[user.role]}</span>
           </div>
 
           <button
             type="button"
+            onClick={() => setShowNotifications(true)}
             className="relative w-9 h-9 rounded-xl bg-card-bg border border-border-line hover:border-slate-600 text-slate-300 hover:text-white flex items-center justify-center transition-colors flex-shrink-0"
             aria-label="Notifications"
           >
             <span className="material-symbols-outlined text-[18px]">notifications</span>
-            <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-rose-500 ring-2 ring-[#090d16]" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-[#090d16]" />
+            )}
           </button>
 
           <AccountMenu />
         </div>
       </div>
+
+      {showNotifications && <NotificationsPanel onClose={() => setShowNotifications(false)} />}
     </header>
   );
 }
