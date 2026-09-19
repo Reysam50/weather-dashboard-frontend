@@ -223,9 +223,20 @@ export default function MultiStationTrendChart({
         )}
 
         <div className="flex justify-between items-center px-2 font-mono text-[10px] text-on-surface-variant">
-          {hourLabels.map((label, i) => (
-            <span key={i}>{label}</span>
-          ))}
+          {/* hourLabels' length must match the data series (hover-index
+              math above depends on it) but with 24 points rendering
+              every single one as a tick is unreadable — sample down to
+              roughly 8 evenly-spaced ticks instead, always including the
+              first and last. */}
+          {hourLabels
+            .map((label, i) => ({ label, i }))
+            .filter(({ i }) => {
+              const step = Math.max(1, Math.ceil(hourLabels.length / 8));
+              return i === 0 || i === hourLabels.length - 1 || i % step === 0;
+            })
+            .map(({ label, i }) => (
+              <span key={i}>{label}</span>
+            ))}
         </div>
       </div>
     </div>

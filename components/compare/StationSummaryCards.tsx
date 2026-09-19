@@ -84,7 +84,6 @@ export default function StationSummaryCards({
                 </div>
               </div>
               <div className="flex flex-col items-end gap-0.5 text-right">
-                <span className="text-[11px] text-on-surface-variant">{hw.elevationM.toLocaleString()} m AMSL</span>
                 {offline ? (
                   <>
                     <span className="text-[10px] text-error flex items-center gap-1">
@@ -96,25 +95,12 @@ export default function StationSummaryCards({
                     </span>
                   </>
                 ) : (
-                  <>
-                    <span className="text-[10px] flex items-center gap-1" style={{ color }}>
-                      <span className="material-symbols-outlined text-[12px]">sensors</span>
-                      Sync: {hydrated ? formatTimeAgoPrecise(station.lastSeenAt) : "…"}
-                    </span>
-                    <span className="text-[10px] text-on-surface-variant">Signal: {hw.signalPct}%</span>
-                  </>
+                  <span className="text-[10px] flex items-center gap-1" style={{ color }}>
+                    <span className="material-symbols-outlined text-[12px]">sensors</span>
+                    Sync: {hydrated ? formatTimeAgoPrecise(station.lastSeenAt) : "…"}
+                  </span>
                 )}
               </div>
-            </div>
-
-            <div className="w-full bg-card-bg-subtle h-1 rounded overflow-hidden">
-              <div
-                className="h-full transition-all"
-                style={{
-                  width: `${offline ? 12 : hw.signalPct}%`,
-                  backgroundColor: offline ? "#ffb4ab" : color,
-                }}
-              />
             </div>
           </div>
         );

@@ -76,9 +76,9 @@ export function buildFindings(stations: Station[]): Finding[] {
   if (online.length >= 1) {
     const primary = MOCK_STATION_DATA[online[0].id];
     if (primary) {
-      const first = primary.pressureHistory[0];
-      const last = primary.pressureHistory[primary.pressureHistory.length - 1];
-      const hours = primary.hourLabels.length;
+      const first = primary.fullDayPressureTrend[0]?.y ?? primary.current.pressure;
+      const last = primary.fullDayPressureTrend[primary.fullDayPressureTrend.length - 1]?.y ?? primary.current.pressure;
+      const hours = primary.fullDayPressureTrend.length;
       const trend = Number((last - first).toFixed(1));
       findings.push({
         icon: "air",
@@ -174,7 +174,7 @@ export function buildMatrixRows(stations: Station[]): MatrixRow[] {
       "Air Temperature",
       "device_thermostat",
       "°C",
-      (id) => MOCK_STATION_DATA[id]?.tempHistory ?? [],
+      (id) => MOCK_STATION_DATA[id]?.fullDayTrend.map((p) => p.y) ?? [],
       (id) => MOCK_STATION_DATA[id]?.current.airTemp ?? 0,
       (diff) => ({ text: `+${diff}°C`, tag: diff > 0.5 ? "[Inversion]" : "[Gradient]" })
     ),
@@ -183,7 +183,7 @@ export function buildMatrixRows(stations: Station[]): MatrixRow[] {
       "Relative Humidity",
       "humidity_percentage",
       "%",
-      (id) => MOCK_STATION_DATA[id]?.humidityHistory ?? [],
+      (id) => MOCK_STATION_DATA[id]?.fullDayHumidityTrend.map((p) => p.y) ?? [],
       (id) => MOCK_STATION_DATA[id]?.current.humidity ?? 0,
       (diff) => ({ text: `${diff}%`, tag: diff < 0 ? "[Plateau Lag]" : "[Valley Trap]" })
     ),
@@ -192,7 +192,7 @@ export function buildMatrixRows(stations: Station[]): MatrixRow[] {
       "Barometric Pressure",
       "speed",
       "hPa",
-      (id) => MOCK_STATION_DATA[id]?.pressureHistory ?? [],
+      (id) => MOCK_STATION_DATA[id]?.fullDayPressureTrend.map((p) => p.y) ?? [],
       (id) => MOCK_STATION_DATA[id]?.current.pressure ?? 0,
       (diff) => ({ text: `${diff >= 0 ? "+" : ""}${diff} hPa`, tag: "[Gradient]" })
     ),

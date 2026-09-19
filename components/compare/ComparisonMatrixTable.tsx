@@ -39,25 +39,37 @@ export default function ComparisonMatrixTable({
         </div>
       </div>
 
+      {/* min-w-max is the actual fix for "make sure it stays horizontal
+          as more stations get added" — plain w-full fights overflow-x-auto
+          by letting the browser squeeze columns to fit instead of
+          overflowing, so with enough stations the table would cram
+          instead of scrolling. min-w-max forces it to size to its real
+          content width, so overflow-x-auto on the wrapper actually
+          kicks in once there are more stations than fit. */}
       <div className="overflow-x-auto rounded-lg border border-border-line">
-        <table className="w-full text-left font-mono text-xs">
+        <table className="w-full min-w-max text-left font-mono text-xs">
           <thead>
             <tr className="bg-[#080c14] text-on-surface-variant uppercase text-[10px] tracking-wider">
-              <th className="py-2.5 px-3">Parameter</th>
+              <th className="py-2.5 px-3 whitespace-nowrap sticky left-0 bg-[#080c14] z-10">Parameter</th>
               {online.map((s) => (
-                <th key={s.id} className="py-2.5 px-3 text-center" colSpan={3} style={{ color: colors[s.id] }}>
+                <th
+                  key={s.id}
+                  className="py-2.5 px-3 text-center whitespace-nowrap"
+                  colSpan={3}
+                  style={{ color: colors[s.id] }}
+                >
                   {s.name}
                 </th>
               ))}
               {offline.map((s) => (
-                <th key={s.id} className="py-2.5 px-3 text-center text-slate-500">
+                <th key={s.id} className="py-2.5 px-3 text-center text-slate-500 whitespace-nowrap">
                   {s.name}
                 </th>
               ))}
-              <th className="py-2.5 px-3 text-right">Microclimate Delta (Δ)</th>
+              <th className="py-2.5 px-3 text-right whitespace-nowrap">Microclimate Delta (Δ)</th>
             </tr>
             <tr className="bg-[#080c14] text-on-surface-variant text-[10px] border-t border-border-line">
-              <th />
+              <th className="sticky left-0 bg-[#080c14] z-10" />
               {online.map((s) => (
                 <Fragment key={s.id}>
                   <th className="py-1.5 px-2 text-center font-normal">High</th>
@@ -74,7 +86,7 @@ export default function ComparisonMatrixTable({
           <tbody className="divide-y divide-border-line text-slate-300">
             {rows.map((row) => (
               <tr key={row.key} className="hover:bg-slate-800/30 transition-colors">
-                <td className="py-3 px-3">
+                <td className="py-3 px-3 sticky left-0 bg-card-bg z-10 whitespace-nowrap">
                   <div className="flex items-center gap-2 text-white font-semibold">
                     <span className="material-symbols-outlined text-[15px] text-on-surface-variant">
                       {row.icon}

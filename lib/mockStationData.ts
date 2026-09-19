@@ -25,6 +25,12 @@ export interface StationMockData {
   shtTempHistory: number[];
   sensorBand: ReturnType<typeof computeSensorBand>;
   fullDayTrend: TrendPoint[];
+  /** Full 24h companion series to fullDayTrend, same midnight-anchored
+   * timestamps — added because the Compare screen's "Today 24h" charts
+   * were actually only plotting humidityHistory/pressureHistory (8
+   * points, 06:00-13:00 only) while claiming to show a full day. */
+  fullDayHumidityTrend: TrendPoint[];
+  fullDayPressureTrend: TrendPoint[];
   dailyRows: DailySummaryRow[];
 }
 
@@ -57,6 +63,30 @@ function buildMockStationData(offset: number, minutesAgo: number): StationMockDa
     28.9, 29.4, 29.6, 29.1, 28.2, 26.8, 24.9, 23.1, 21.8, 20.9, 20.1, 19.5,
   ].map((v) => round1(v + offset));
   const fullDayTrend: TrendPoint[] = fullDayCurve.map((y, hour) => ({
+    x: todayMidnight.getTime() + hour * 60 * 60 * 1000,
+    y,
+  }));
+
+  // Roughly inverse of the temperature curve — humid overnight, drier in
+  // the afternoon heat, same shape logic used for humidityHistory above
+  // just extended across the full day.
+  const fullDayHumidityCurve = [
+    68, 70, 71, 72, 73, 72, 68, 62, 56, 50, 46, 43,
+    41, 40, 41, 43, 47, 52, 58, 62, 65, 67, 68, 68,
+  ].map((v) => round1(Math.min(100, Math.max(0, v - offset * 2))));
+  const fullDayHumidityTrend: TrendPoint[] = fullDayHumidityCurve.map((y, hour) => ({
+    x: todayMidnight.getTime() + hour * 60 * 60 * 1000,
+    y,
+  }));
+
+  // Gentle semi-diurnal pressure wave (two peaks, two troughs) — same
+  // offset scaling as pressureHistory above.
+  const fullDayPressureCurve = [
+    1012.6, 1012.4, 1012.3, 1012.2, 1012.3, 1012.6, 1013.0, 1013.4,
+    1013.7, 1013.8, 1013.7, 1013.4, 1013.0, 1012.6, 1012.3, 1012.1,
+    1012.0, 1012.2, 1012.6, 1013.0, 1013.4, 1013.6, 1013.5, 1013.1,
+  ].map((v) => round1(v + offset * 0.5));
+  const fullDayPressureTrend: TrendPoint[] = fullDayPressureCurve.map((y, hour) => ({
     x: todayMidnight.getTime() + hour * 60 * 60 * 1000,
     y,
   }));
@@ -95,6 +125,8 @@ function buildMockStationData(offset: number, minutesAgo: number): StationMockDa
     shtTempHistory,
     sensorBand,
     fullDayTrend,
+    fullDayHumidityTrend,
+    fullDayPressureTrend,
     dailyRows,
   };
 }

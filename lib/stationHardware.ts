@@ -10,10 +10,6 @@ export interface StationHardwareInfo {
   elevationM: number;
   terrainLabel: string;
   gatewayLabel: string;
-  /** Synthetic-but-consistent signal quality (0-100) — there's no real
-   * RSSI reading behind this, same "plausible not literal" mock pattern
-   * as wind speed and solar radiation elsewhere in this app. */
-  signalPct: number;
 }
 
 /**
@@ -37,7 +33,6 @@ export const STATION_HARDWARE: Record<string, StationHardwareInfo> = {
     elevationM: 948,
     terrainLabel: "BASIN",
     gatewayLabel: "Particle Boron LTE // AWS #01",
-    signalPct: 98,
   },
   "2": {
     firmware: "v2.4.1-aws",
@@ -53,7 +48,6 @@ export const STATION_HARDWARE: Record<string, StationHardwareInfo> = {
     elevationM: 1533,
     terrainLabel: "ESCARPMENT",
     gatewayLabel: "Particle Boron LTE // AWS #02",
-    signalPct: 89,
   },
   "3": {
     firmware: "v2.3.9-legacy",
@@ -69,7 +63,6 @@ export const STATION_HARDWARE: Record<string, StationHardwareInfo> = {
     elevationM: 1039,
     terrainLabel: "URBAN",
     gatewayLabel: "Particle Boron LTE // AWS #03",
-    signalPct: 12,
   },
 };
 
@@ -87,7 +80,6 @@ const FALLBACK_HARDWARE: StationHardwareInfo = {
   elevationM: 1000,
   terrainLabel: "FIELD SITE",
   gatewayLabel: "Particle Boron LTE // Unassigned",
-  signalPct: 80,
 };
 
 export function getStationHardware(stationId: string): StationHardwareInfo {

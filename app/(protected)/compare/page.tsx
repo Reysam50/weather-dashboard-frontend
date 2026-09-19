@@ -66,7 +66,16 @@ export default function ComparePage() {
   const offlineStations = selectedStations.filter((s) => s.status === "offline");
   const primary = onlineStations[0];
 
-  const hourLabels = primary ? MOCK_STATION_DATA[primary.id]?.hourLabels ?? [] : [];
+  // Full 24h series (00:00-23:00), not the old 8-point 06:00-13:00
+  // window — that was the actual bug behind "not showing the 24hr time
+  // frame": hourLabels/tempHistory/humidityHistory/pressureHistory only
+  // ever covered 8 morning hours, regardless of what the "Today 24h" tab
+  // label claimed.
+  const fullDayHourLabels = primary
+    ? (MOCK_STATION_DATA[primary.id]?.fullDayTrend ?? []).map((p) =>
+        new Date(p.x).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
+      )
+    : [];
 
   const heroDays = rangeTab === "7d" ? 7 : rangeTab === "30d" ? 30 : rangeTab === "custom" ? customDays : null;
 
@@ -80,21 +89,21 @@ export default function ComparePage() {
     }
     return selectedStations.map((s) => {
       const data = MOCK_STATION_DATA[s.id];
-      return { station: s, color: colors[s.id], values: data?.tempHistory ?? [] };
+      return { station: s, color: colors[s.id], values: data?.fullDayTrend.map((p) => p.y) ?? [] };
     });
   }, [selectedStations, colors, heroDays]);
 
-  const heroLabels = heroDays ? buildDailyAggregate(selectedStations[0]?.id ?? "1", heroDays).labels : hourLabels;
+  const heroLabels = heroDays ? buildDailyAggregate(selectedStations[0]?.id ?? "1", heroDays).labels : fullDayHourLabels;
 
   const humiditySeries = onlineStations.slice(0, 2).map((s) => ({
     station: s,
     color: colors[s.id],
-    values: MOCK_STATION_DATA[s.id]?.humidityHistory ?? [],
+    values: MOCK_STATION_DATA[s.id]?.fullDayHumidityTrend.map((p) => p.y) ?? [],
   }));
   const pressureSeries = onlineStations.slice(0, 2).map((s) => ({
     station: s,
     color: colors[s.id],
-    values: MOCK_STATION_DATA[s.id]?.pressureHistory ?? [],
+    values: MOCK_STATION_DATA[s.id]?.fullDayPressureTrend.map((p) => p.y) ?? [],
   }));
 
   function avgOf(values: number[]) {
@@ -260,7 +269,7 @@ export default function ComparePage() {
             subtitle={
               heroDays
                 ? `Synthetic daily aggregate // last ${heroDays} days`
-                : `Continuous synchronized rolling telemetry // ${hourLabels[0] ?? ""} to ${hourLabels[hourLabels.length - 1] ?? ""} CAT (1-hr resolution)`
+                : `Continuous synchronized rolling telemetry // ${fullDayHourLabels[0] ?? ""} to ${fullDayHourLabels[fullDayHourLabels.length - 1] ?? ""} CAT (1-hr resolution)`
             }
             series={heroSeries}
             unit="°C"
@@ -276,7 +285,7 @@ export default function ComparePage() {
                 subtitle="Valley basin moisture trap vs mountain windward condensation"
                 series={humiditySeries}
                 unit="%"
-                hourLabels={hourLabels}
+                hourLabels={fullDayHourLabels}
                 height={200}
                 deltaBadge={
                   humiditySeries.length === 2
@@ -289,7 +298,7 @@ export default function ComparePage() {
                 subtitle="Sea-level adjusted synoptic front progression"
                 series={pressureSeries}
                 unit=" hPa"
-                hourLabels={hourLabels}
+                hourLabels={fullDayHourLabels}
                 height={200}
                 deltaBadge={
                   pressureSeries.length === 2
