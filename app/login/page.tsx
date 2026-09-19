@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
+import { tryMockLogin } from "@/lib/mockSession";
 import NodeHealthPulse from "@/components/auth/NodeHealthPulse";
 import ForgotPasswordModal from "@/components/auth/ForgotPasswordModal";
 import WeatherStationIllustration from "@/components/auth/WeatherStationIllustration";
@@ -54,10 +55,24 @@ export default function LoginPage() {
       });
       router.push("/dashboard");
     } catch (err) {
+      // Only a real 401 is proof a real backend exists AND rejected
+      // these credentials. Everything else — a network error (no
+      // backend at all), or a 404 (this exact route relative-URL-resolves
+      // to the Next.js dev server itself when no backend is proxied in,
+      // which answers unknown routes with a genuine HTTP 404, not a
+      // connection failure) — is treated as "no real backend yet," so
+      // fall back to the dev-only default account (lib/mockSession.ts)
+      // instead of just failing. This stops firing on its own once a
+      // real backend exists and actually answers these requests.
       if (err instanceof ApiError && err.status === 401) {
         setError("Incorrect email or password.");
       } else {
-        setError("Something went wrong logging in. Please try again.");
+        const session = tryMockLogin(email, password);
+        if (session) {
+          router.push("/dashboard");
+        } else {
+          setError("Incorrect email or password.");
+        }
       }
     } finally {
       setIsSubmitting(false);
@@ -85,10 +100,6 @@ export default function LoginPage() {
               Automatic Weather Station (AWS) Telemetry Network
             </span>
           </div>
-        </div>
-        <div className="hidden md:flex items-center gap-2 font-mono text-[11px] text-on-surface-variant">
-          <span className="material-symbols-outlined text-[15px] text-secondary">shield</span>
-          PROD CLUSTER // MALAWI MET SERVICES &amp; UNIMA CO-OP
         </div>
         <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card-bg-subtle border border-border-line font-mono text-[11px] text-primary-container font-semibold">
           <span className="material-symbols-outlined text-[15px]">lock</span>

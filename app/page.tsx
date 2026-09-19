@@ -3,19 +3,19 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
+import { getMockSession } from "@/lib/mockSession";
 
 /**
  * Entry point — decides whether to send the visitor to /login or
  * /dashboard, based on whether they have a valid session
  * (api-specification.md §2, GET /auth/me).
  *
- * Matches app/(protected)/layout.tsx's guard logic: only a real 401 means
- * "not logged in" and sends you to /login. Any other failure (network
- * error, because there's no backend yet) falls through to /dashboard
- * instead — previously this treated every failure the same way, which
- * meant visiting "/" during frontend-only development always bounced to
- * /login even though the protected layout itself would have let you
- * through to /dashboard if you'd typed that URL directly.
+ * Matches app/(protected)/layout.tsx's guard logic exactly: a real 401
+ * means "not logged in" → /login. A network error (no backend reachable
+ * yet) checks for a dev-mode mock session (lib/mockSession.ts) instead —
+ * only present if you've actually logged in via /login with the
+ * NEXT_PUBLIC_DEV_LOGIN_* account — and only then goes to /dashboard;
+ * otherwise it's /login same as a real 401.
  */
 export default function Home() {
   const router = useRouter();
@@ -26,13 +26,9 @@ export default function Home() {
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
           router.replace("/login");
-        } else {
-          console.warn(
-            "GET /auth/me failed without a 401 — defaulting to /dashboard:",
-            err
-          );
-          router.replace("/dashboard");
+          return;
         }
+        router.replace(getMockSession() ? "/dashboard" : "/login");
       });
   }, [router]);
 

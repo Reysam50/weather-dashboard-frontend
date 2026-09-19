@@ -9,7 +9,7 @@ import { StationProvider } from "@/lib/StationContext";
 import { AdminSettingsProvider } from "@/lib/AdminSettingsContext";
 import { AuthProvider, type AuthUser } from "@/lib/AuthContext";
 import { NotificationsProvider } from "@/lib/NotificationsContext";
-import { MOCK_FALLBACK_USER } from "@/lib/mockAuth";
+import { getMockSession } from "@/lib/mockSession";
 import { PAGE_CONTAINER } from "@/lib/layout";
 
 /**
@@ -19,10 +19,14 @@ import { PAGE_CONTAINER } from "@/lib/layout";
  * and api-specification.md §2. Distinguishes two different failure cases,
  * since there's no backend yet:
  * - A real 401 ("you are not logged in") → redirect to /login.
- * - Anything else (network error because no backend exists yet) → fall
- *   back to MOCK_FALLBACK_USER and let the page render anyway, so
- *   frontend-only dev keeps working. Once a real backend exists this
- *   branch stops firing on its own — no code change needed here.
+ * - A network error (no backend reachable yet) → check for a dev-mode
+ *   mock session instead (lib/mockSession.ts, set by actually logging in
+ *   on /login with the NEXT_PUBLIC_DEV_LOGIN_* account) — if one exists,
+ *   use it; if not, this is genuinely "not logged in," so redirect to
+ *   /login same as a real 401. Previously this branch granted access
+ *   unconditionally via a hardcoded fallback user regardless of whether
+ *   you'd ever logged in at all — fixed, since "am I logged in?" needs a
+ *   real answer even before a backend exists.
  *
  * The successful response is now kept (not just used for the redirect
  * check) and provided via AuthContext, so every screen reads the real
@@ -71,13 +75,15 @@ export default function ProtectedLayout({
           router.replace("/login");
           return;
         }
-        // No backend yet, or a transient error — not proof of "logged
-        // out," so don't redirect. Use the dev-mode fallback instead.
-        console.warn(
-          "GET /auth/me failed without a 401 — using the mock user and letting the page render anyway:",
-          err
-        );
-        setUser(MOCK_FALLBACK_USER);
+        // No backend reachable — check for a dev-mode mock session
+        // (only exists if you actually logged in on /login) before
+        // deciding whether that counts as "logged in."
+        const mockSession = getMockSession();
+        if (!mockSession) {
+          router.replace("/login");
+          return;
+        }
+        setUser(mockSession);
         setIsRealSession(false);
         setAuthState("ready");
       });

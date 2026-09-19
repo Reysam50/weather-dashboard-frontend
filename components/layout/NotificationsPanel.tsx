@@ -1,11 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNotifications } from "@/lib/NotificationsContext";
 import { SEVERITY_STYLES } from "@/lib/notifications";
 import { useHydrated } from "@/lib/useHydrated";
 import { formatTimeAgo } from "@/lib/formatTimeAgo";
 
+/**
+ * Rendered via a portal straight into document.body — this used to be a
+ * plain child of AppHeader.tsx's <header>, but that element has
+ * `position: sticky` + `z-index: 50`, which makes it establish its own
+ * stacking context. Every descendant's z-index (including this panel's,
+ * however high) only ever gets compared *inside* that context, so the
+ * whole header — panel included — was capped at z-50 as a unit against
+ * the rest of the page, and page content with its own stacking context
+ * (any positioned element with a z-index, which several cards have) could
+ * end up painted on top of it. Portaling escapes that entirely instead of
+ * chasing z-index numbers.
+ */
 export default function NotificationsPanel({ onClose }: { onClose: () => void }) {
   const { notifications, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
   const hydrated = useHydrated();
@@ -24,7 +37,7 @@ export default function NotificationsPanel({ onClose }: { onClose: () => void })
     setTimeout(onClose, 200);
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[1100]">
       <button
         type="button"
@@ -105,6 +118,7 @@ export default function NotificationsPanel({ onClose }: { onClose: () => void })
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

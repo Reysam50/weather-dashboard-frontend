@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/AuthContext";
  * item highlighted in blue. Pattern copied from WeatherNode's
  * resources/views/weather/partials/mobile-nav.blade.php.
  *
- * Filters NAV_ITEMS by CURRENT_ROLE, same as AppNav.tsx — see that file's
+ * Filters NAV_ITEMS by the real signed-in role (useAuth()), same idea as AppNav.tsx — see that file's
  * comment for why this only just became enforced.
  *
  * Icons are plain inline SVG (same approach WeatherNode uses) rather than

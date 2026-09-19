@@ -5,7 +5,7 @@
  *
  * `roles` records who can see each item, per stakeholder-analysis.md's
  * permission table — enforced by both nav components, which filter
- * NAV_ITEMS against lib/mockAuth.ts's CURRENT_ROLE before rendering.
+ * NAV_ITEMS against the real signed-in role (lib/AuthContext.tsx) before rendering.
  */
 
 export type Role = "station_operator" | "administrator" | "technical_team";
