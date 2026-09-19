@@ -9,6 +9,16 @@ export interface AdminSettings {
   fallbackTelemetryEnabled: boolean;
   sdBackpressureEnabled: boolean;
   mtlsEnabled: boolean;
+  /** Max acceptable difference (°C) between the primary MCP9808 air-temp
+   * reading and each diagnostic sensor (BMP360, SHT31) before the Live
+   * Dashboard's Sensor Agreement panel flags it as degraded. Previously
+   * hardcoded to 0.8 in the dashboard itself — now a real setting so it
+   * isn't buried in component code. */
+  sensorAgreementToleranceC: number;
+  /** Max acceptable % difference between the two 451A rain gauges before
+   * the dashboard's dual-gauge card flags a variance warning. Previously
+   * hardcoded to 5 in the component. */
+  rainGaugeVarianceTolerancePct: number;
 }
 
 export const DEFAULT_SETTINGS: AdminSettings = {
@@ -17,6 +27,8 @@ export const DEFAULT_SETTINGS: AdminSettings = {
   fallbackTelemetryEnabled: true,
   sdBackpressureEnabled: true,
   mtlsEnabled: true,
+  sensorAgreementToleranceC: 0.8,
+  rainGaugeVarianceTolerancePct: 5,
 };
 
 /**

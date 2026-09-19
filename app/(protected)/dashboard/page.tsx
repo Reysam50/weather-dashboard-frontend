@@ -46,7 +46,7 @@ export default function DashboardPage() {
           <DualGaugeRainfallCard data={data} extras={extras} />
         </div>
         <div className="xl:col-span-4 space-y-8">
-          <SensorTriadCard data={data} extras={extras} />
+          <SensorTriadCard data={data} />
           <AnemometerCard extras={extras} />
           <SynopticOutlookCard extras={extras} />
         </div>

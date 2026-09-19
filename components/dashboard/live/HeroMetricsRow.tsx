@@ -66,7 +66,7 @@ export default function HeroMetricsRow({
                 <span className="font-mono text-xs font-semibold uppercase tracking-wider text-slate-300">
                   Air Temp
                 </span>
-                <span className="text-[11px] font-mono text-slate-500 block">SHT-31 EXT</span>
+                <span className="text-[11px] font-mono text-slate-500 block">MCP9808</span>
               </div>
             </div>
             <span className="px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-300 font-mono text-xs font-semibold flex items-center gap-1">
@@ -115,7 +115,7 @@ export default function HeroMetricsRow({
                 <span className="font-mono text-xs font-semibold uppercase tracking-wider text-slate-300">
                   Relative Humidity
                 </span>
-                <span className="text-[11px] font-mono text-slate-500 block">SHT-31 SENSOR</span>
+                <span className="text-[11px] font-mono text-slate-500 block">SHT31 SENSOR</span>
               </div>
             </div>
             <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-400 font-mono text-xs font-semibold">
@@ -220,7 +220,7 @@ export default function HeroMetricsRow({
                 <span className="font-mono text-xs font-semibold uppercase tracking-wider text-slate-300">
                   Pressure / Solar
                 </span>
-                <span className="text-[11px] font-mono text-slate-500 block">BMP280 + PYR</span>
+                <span className="text-[11px] font-mono text-slate-500 block">BMP360 + PYR</span>
               </div>
             </div>
             <span className="px-2.5 py-1 rounded-md bg-purple-500/15 text-purple-300 font-mono text-xs font-semibold">

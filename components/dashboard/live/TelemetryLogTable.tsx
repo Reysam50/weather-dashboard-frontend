@@ -24,6 +24,39 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
   const rangeStart = filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
   const rangeEnd = Math.min(currentPage * PAGE_SIZE, filtered.length);
 
+  function handleExportCsv() {
+    const header = [
+      "Timestamp",
+      "Air Temp (MCP9808, °C)",
+      "BMP360 (°C)",
+      "SHT31 (°C)",
+      "Rel Humidity (%)",
+      "Barometric (hPa)",
+      "Rain Rate (mm/h)",
+      "Solar (W/m²)",
+      "QA Score",
+    ];
+    const rows = extras.ingestLog.map((row) => [
+      row.time,
+      row.airTemp,
+      row.bmpTemp,
+      row.shtTemp,
+      row.humidity,
+      row.pressure,
+      row.rainRate,
+      row.solar,
+      row.qaScore,
+    ]);
+    const csv = [header, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "telemetry-ingest-log.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <section className="bg-card-bg rounded-2xl p-7 border border-border-line shadow-[0_4px_20px_rgba(0,0,0,0.25)] space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-border-line">
@@ -65,18 +98,35 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
             </button>
             {exportOpen && (
               <div className="absolute right-0 mt-2 w-48 rounded-xl bg-[#141b2e] border border-border-line shadow-2xl z-30 py-2">
-                <a className="px-4 py-2 hover:bg-slate-800/60 text-slate-200 flex items-center gap-2.5 transition-colors" href="#">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleExportCsv();
+                    setExportOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-800/60 text-slate-200 flex items-center gap-2.5 transition-colors"
+                >
                   <span className="material-symbols-outlined text-[16px] text-cyan-400">csv</span>
                   <span>Export CSV (.csv)</span>
-                </a>
-                <a className="px-4 py-2 hover:bg-slate-800/60 text-slate-200 flex items-center gap-2.5 transition-colors" href="#">
-                  <span className="material-symbols-outlined text-[16px] text-secondary">table_view</span>
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  title="Excel export isn't wired up yet"
+                  className="w-full text-left px-4 py-2 text-slate-600 flex items-center gap-2.5 cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-[16px]">table_view</span>
                   <span>Export Excel (.xlsx)</span>
-                </a>
-                <a className="px-4 py-2 hover:bg-slate-800/60 text-slate-200 flex items-center gap-2.5 transition-colors" href="#">
-                  <span className="material-symbols-outlined text-[16px] text-purple-400">code</span>
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  title="GeoJSON/REST export isn't wired up yet"
+                  className="w-full text-left px-4 py-2 text-slate-600 flex items-center gap-2.5 cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-[16px]">code</span>
                   <span>Export GeoJSON / REST</span>
-                </a>
+                </button>
               </div>
             )}
           </div>
@@ -89,7 +139,7 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
             <tr>
               <th className="py-3.5 px-5">Timestamp (CAT)</th>
               <th className="py-3.5 px-5 text-right">Air Temp (°C)</th>
-              <th className="py-3.5 px-5 text-right">BMP280 (°C)</th>
+              <th className="py-3.5 px-5 text-right">BMP360 (°C)</th>
               <th className="py-3.5 px-5 text-right">SHT31 (°C)</th>
               <th className="py-3.5 px-5 text-right">Rel Humidity (%)</th>
               <th className="py-3.5 px-5 text-right">Barometric (hPa)</th>

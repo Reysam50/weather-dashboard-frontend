@@ -200,6 +200,62 @@ export default function SettingsPanel({ draft, onChange }: SettingsPanelProps) {
         </div>
       </div>
 
+      {/* Sensor & QA tolerances — previously hardcoded in the dashboard */}
+      <div className="bg-card-bg p-4 rounded-2xl border border-border-line shadow-sm flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[20px] text-secondary">tune</span>
+          <h2 className="text-sm font-bold text-white">Sensor &amp; QA Tolerances</h2>
+        </div>
+        <p className="text-xs text-on-surface-variant">
+          Feed the Live Dashboard&apos;s Sensor Agreement panel and dual-gauge rainfall check —
+          applies immediately, everywhere, once published.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <label className="block">
+            <span className="text-xs font-mono font-semibold text-slate-300 block mb-1.5">
+              Sensor Agreement Tolerance (°C)
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="0.1"
+                min="0.1"
+                value={draft.sensorAgreementToleranceC}
+                onChange={(e) =>
+                  onChange({ sensorAgreementToleranceC: Math.max(0.1, Number(e.target.value) || 0.1) })
+                }
+                className="w-24 bg-[#080c14] border border-border-line rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-cyan-400"
+              />
+              <span className="text-[10px] text-on-surface-variant font-mono">
+                Max BMP360/SHT31 diagnostic delta from the primary MCP9808 reading before it&apos;s
+                flagged as degraded.
+              </span>
+            </div>
+          </label>
+          <label className="block">
+            <span className="text-xs font-mono font-semibold text-slate-300 block mb-1.5">
+              Rain Gauge Variance Tolerance (%)
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="0.5"
+                min="0.5"
+                value={draft.rainGaugeVarianceTolerancePct}
+                onChange={(e) =>
+                  onChange({ rainGaugeVarianceTolerancePct: Math.max(0.5, Number(e.target.value) || 0.5) })
+                }
+                className="w-24 bg-[#080c14] border border-border-line rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-cyan-400"
+              />
+              <span className="text-[10px] text-on-surface-variant font-mono">
+                Max acceptable difference between the two 451A rain gauges before flagging a
+                variance warning.
+              </span>
+            </div>
+          </label>
+        </div>
+      </div>
+
       {/* Real geo-spatial reference, replacing the mockup's stock photo */}
       <div className="bg-card-bg p-4 rounded-2xl border border-border-line shadow-sm flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">

@@ -16,9 +16,51 @@ function vaporPressureKPa(dewC: number) {
   return round2(0.6108 * Math.exp((17.27 * dewC) / (dewC + 237.3)));
 }
 
-function degToCompass(deg: number) {
+export function degToCompass(deg: number) {
   const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
   return dirs[Math.round(deg / 45) % 8];
+}
+
+export interface SensorAgreement {
+  /** BMP360 diagnostic reading minus the primary MCP9808 air temp. */
+  bmpDeltaC: number;
+  /** SHT31 diagnostic reading minus the primary MCP9808 air temp. */
+  shtDeltaC: number;
+  /** Larger of the two |delta| values — what actually gets compared
+   * against the configured tolerance. */
+  maxAbsDeltaC: number;
+  /** Max − min across all three raw readings. */
+  spreadC: number;
+  status: "OPTIMAL" | "DEGRADED";
+}
+
+/**
+ * Computes real-time sensor agreement from the three live temperature
+ * readings against a caller-supplied tolerance (lib/adminSettings.ts's
+ * sensorAgreementToleranceC, via AdminSettingsContext) — deliberately NOT
+ * baked into LIVE_TELEMETRY_EXTRAS below, since that's built once at
+ * module load and can't react to a tolerance the user changes at
+ * runtime. Call this directly from the component with the live values
+ * and the live tolerance instead.
+ */
+export function computeSensorAgreement(
+  airTempC: number,
+  bmpTempC: number,
+  shtTempC: number,
+  toleranceC: number
+): SensorAgreement {
+  const bmpDeltaC = round2(bmpTempC - airTempC);
+  const shtDeltaC = round2(shtTempC - airTempC);
+  const maxAbsDeltaC = round2(Math.max(Math.abs(bmpDeltaC), Math.abs(shtDeltaC)));
+  const values = [airTempC, bmpTempC, shtTempC];
+  const spreadC = round2(Math.max(...values) - Math.min(...values));
+  return {
+    bmpDeltaC,
+    shtDeltaC,
+    maxAbsDeltaC,
+    spreadC,
+    status: maxAbsDeltaC <= toleranceC ? "OPTIMAL" : "DEGRADED",
+  };
 }
 
 export interface ForecastDay {
@@ -54,11 +96,6 @@ export interface LiveTelemetryExtras {
   uvIndex: number;
   uvCategory: string;
   solarNoonPeakWm2: number;
-  sensorOffsets: { air: number; bmp: number; sht: number };
-  weightedMedianC: number;
-  stdDevC: number;
-  cohesionPct: number;
-  qaAssessment: string;
   wind: {
     speedKmh: number;
     gustKmh: number;
@@ -133,15 +170,8 @@ function buildIngestLog(base: StationMockData, count: number): IngestLogRow[] {
 function buildLiveExtras(stationId: string, offset: number, seed: number): LiveTelemetryExtras {
   const base = MOCK_STATION_DATA[stationId];
   const airExt = base.current.airTemp;
-  const bmp = base.bmpTempHistory[base.bmpTempHistory.length - 1];
-  const sht = base.shtTempHistory[base.shtTempHistory.length - 1];
 
   const dew = dewPointC(airExt, base.current.humidity);
-  const values = [airExt, bmp, sht];
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
-  const stdDev = round2(Math.sqrt(variance));
-  const cohesionPct = round1(Math.min(99.9, Math.max(90, 100 - stdDev * 8)));
 
   const g1Total = round1(base.rainGauge1.reduce((a, b) => a + b, 0));
   const g2Total = round1(base.rainGauge2.reduce((a, b) => a + b, 0));
@@ -173,15 +203,6 @@ function buildLiveExtras(stationId: string, offset: number, seed: number): LiveT
     uvIndex,
     uvCategory: uvIndex >= 8 ? "HIGH" : uvIndex >= 6 ? "MOD" : uvIndex >= 3 ? "LOW" : "MIN",
     solarNoonPeakWm2: round1(solarWm2 + 10),
-    sensorOffsets: {
-      air: 0,
-      bmp: round2(bmp - airExt),
-      sht: round2(sht - airExt),
-    },
-    weightedMedianC: round2(mean),
-    stdDevC: stdDev,
-    cohesionPct,
-    qaAssessment: cohesionPct >= 97 ? "OPTIMAL" : cohesionPct >= 92 ? "ACCEPTABLE" : "DEGRADED",
     wind: {
       speedKmh: windSpeed,
       gustKmh: windGust,

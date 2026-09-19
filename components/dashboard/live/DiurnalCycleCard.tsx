@@ -1,15 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { StationMockData } from "@/lib/mockStationData";
 import type { LiveTelemetryExtras } from "@/lib/liveTelemetryData";
 import { scaleSeries, smoothLinePath, areaPath } from "@/lib/chartPaths";
 
-const RANGES = [
+const RANGE_BUTTONS = [
   { label: "24H", hours: 24 },
   { label: "12H", hours: 12 },
   { label: "6H", hours: 6 },
 ] as const;
+
+const MIN_WINDOW_HOURS = 2;
+const TOTAL_HOURS = 24;
 
 const THERMAL_BANDS = [
   { label: "Cold (<15°C)", swatch: "bg-cyan-400" },
@@ -21,6 +24,14 @@ const THERMAL_BANDS = [
 const VIEW_W = 800;
 const VIEW_H = 240;
 
+type DragMode = "move" | "resize-left" | "resize-right";
+interface DragState {
+  mode: DragMode;
+  startX: number;
+  startWindowStart: number;
+  startWindowHours: number;
+}
+
 export default function DiurnalCycleCard({
   data,
   extras,
@@ -28,10 +39,23 @@ export default function DiurnalCycleCard({
   data: StationMockData;
   extras: LiveTelemetryExtras;
 }) {
-  const [rangeHours, setRangeHours] = useState<number>(24);
+  // windowStart/windowHours are hours-from-midnight, and can be
+  // fractional while dragging — the pan bar below is a real draggable
+  // control (both moving the whole window and resizing either edge),
+  // not just a decorative bar fixed at 50% width like before. The 24H/
+  // 12H/6H buttons are shortcuts that set these same two values, ending
+  // aligned to "now" (the right edge) — they don't work independently of
+  // the bar anymore, they drive it.
+  const [windowHours, setWindowHours] = useState<number>(TOTAL_HOURS);
+  const [windowStart, setWindowStart] = useState<number>(0);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<DragState | null>(null);
 
-  const trend = data.fullDayTrend.slice(-rangeHours);
+  const startIdx = Math.max(0, Math.min(TOTAL_HOURS - 1, Math.round(windowStart)));
+  const endIdx = Math.max(startIdx + 1, Math.min(TOTAL_HOURS, Math.round(windowStart + windowHours)));
+  const trend = data.fullDayTrend.slice(startIdx, endIdx);
+
   const tempValues = trend.map((p) => p.y);
   const dewOffset = data.current.airTemp - extras.dewPoint;
   const dewValues = tempValues.map((v) => Number((v - dewOffset - 2).toFixed(1)));
@@ -42,6 +66,7 @@ export default function DiurnalCycleCard({
   const tempFill = areaPath(tempLine, tempPoints, VIEW_H);
   const dewLine = smoothLinePath(dewPoints);
 
+  const isLatestWindow = endIdx >= TOTAL_HOURS;
   const activeIndex = hoverIndex ?? tempValues.length - 1;
   const activePoint = tempPoints[activeIndex];
   const activeTime = new Date(trend[activeIndex]?.x ?? Date.now()).toLocaleTimeString([], {
@@ -50,8 +75,8 @@ export default function DiurnalCycleCard({
     hour12: false,
   });
 
-  const min = Math.min(...tempValues);
-  const max = Math.max(...tempValues);
+  const min = tempValues.length ? Math.min(...tempValues) : 0;
+  const max = tempValues.length ? Math.max(...tempValues) : 0;
   const yLabels = [max, max - (max - min) / 3, max - (2 * (max - min)) / 3, min].map((v) =>
     Math.round(v)
   );
@@ -61,6 +86,67 @@ export default function DiurnalCycleCard({
     const fraction = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
     const idx = Math.round(fraction * (tempValues.length - 1));
     setHoverIndex(idx);
+  }
+
+  function handleRangeButton(hours: number) {
+    setWindowHours(hours);
+    setWindowStart(Math.max(0, TOTAL_HOURS - hours));
+  }
+
+  function handlePointerDown(mode: DragMode) {
+    return (e: React.PointerEvent) => {
+      e.preventDefault();
+      dragRef.current = { mode, startX: e.clientX, startWindowStart: windowStart, startWindowHours: windowHours };
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+    };
+  }
+
+  function handlePointerMove(e: PointerEvent) {
+    const drag = dragRef.current;
+    const track = trackRef.current;
+    if (!drag || !track) return;
+    const rect = track.getBoundingClientRect();
+    const deltaHours = ((e.clientX - drag.startX) / rect.width) * TOTAL_HOURS;
+
+    if (drag.mode === "move") {
+      const clamped = Math.max(0, Math.min(TOTAL_HOURS - drag.startWindowHours, drag.startWindowStart + deltaHours));
+      setWindowStart(clamped);
+    } else if (drag.mode === "resize-left") {
+      const originalEnd = drag.startWindowStart + drag.startWindowHours;
+      const newStart = Math.max(0, Math.min(originalEnd - MIN_WINDOW_HOURS, drag.startWindowStart + deltaHours));
+      setWindowStart(newStart);
+      setWindowHours(originalEnd - newStart);
+    } else {
+      const newHours = Math.max(
+        MIN_WINDOW_HOURS,
+        Math.min(TOTAL_HOURS - drag.startWindowStart, drag.startWindowHours + deltaHours)
+      );
+      setWindowHours(newHours);
+    }
+  }
+
+  function handlePointerUp() {
+    dragRef.current = null;
+    window.removeEventListener("pointermove", handlePointerMove);
+    window.removeEventListener("pointerup", handlePointerUp);
+  }
+
+  function handleExportCurve() {
+    const header = ["Time", "Air Temp °C (MCP9808)", "Dew Point °C"];
+    const rows = trend.map((p, i) => [
+      new Date(p.x).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
+      tempValues[i],
+      dewValues[i],
+    ]);
+    const csv = [header, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "diurnal-temperature-curve.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -78,13 +164,13 @@ export default function DiurnalCycleCard({
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-card-bg-subtle p-1 rounded-xl border border-border-line font-mono text-xs">
-            {RANGES.map((r) => (
+            {RANGE_BUTTONS.map((r) => (
               <button
                 key={r.label}
                 type="button"
-                onClick={() => setRangeHours(r.hours)}
+                onClick={() => handleRangeButton(r.hours)}
                 className={`px-3 py-1 rounded-lg transition-colors ${
-                  rangeHours === r.hours
+                  Math.round(windowHours) === r.hours && isLatestWindow
                     ? "bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/30"
                     : "text-slate-400 hover:text-white hover:bg-slate-800/40"
                 }`}
@@ -96,6 +182,7 @@ export default function DiurnalCycleCard({
           <button
             type="button"
             title="Export Curve"
+            onClick={handleExportCurve}
             className="w-8 h-8 rounded-xl bg-card-bg-subtle border border-border-line text-slate-400 hover:text-white flex items-center justify-center transition-colors"
           >
             <span className="material-symbols-outlined text-[16px]">file_download</span>
@@ -183,7 +270,7 @@ export default function DiurnalCycleCard({
               {activeTime} CAT {hoverIndex === null && "• PEAK FLUX"}
             </div>
             <div className="text-amber-300 font-bold text-sm my-0.5">
-              {tempValues[activeIndex]}°C <span className="text-[10px] text-slate-400 font-normal">(SHT-31)</span>
+              {tempValues[activeIndex]}°C <span className="text-[10px] text-slate-400 font-normal">(MCP9808)</span>
             </div>
             <div className="text-cyan-300 text-[11px]">Dew Point: {dewValues[activeIndex]}°C</div>
           </div>
@@ -199,28 +286,60 @@ export default function DiurnalCycleCard({
       <div className="mt-5 space-y-2">
         <div className="flex items-center justify-between font-mono text-xs text-slate-400">
           <span>{new Date(trend[0]?.x ?? Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })} CAT (START)</span>
-          <span className="text-cyan-300 font-semibold">SHOWING LAST {rangeHours}H</span>
+          <span className="text-cyan-300 font-semibold">
+            {isLatestWindow ? `SHOWING LAST ${Math.round(windowHours)}H` : `PANNED — ${Math.round(windowHours)}H WINDOW`}
+          </span>
           <span>
             {new Date(trend[trend.length - 1]?.x ?? Date.now()).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
               hour12: false,
             })}{" "}
-            CAT (NOW)
+            CAT {isLatestWindow ? "(NOW)" : ""}
           </span>
         </div>
-        <div className="relative w-full h-8 bg-[#080c14] border border-border-line rounded-lg p-1 flex items-center">
-          <div className="w-full h-2 opacity-25">
+        {/* Real drag-to-pan control: drag the highlighted window to move
+            through the day, or drag either edge to resize the window —
+            this used to be a fixed bar always centered at 50% width with
+            no pointer handling at all. */}
+        <div
+          ref={trackRef}
+          className="relative w-full h-8 bg-[#080c14] border border-border-line rounded-lg p-1 flex items-center touch-none select-none"
+        >
+          <div className="w-full h-2 opacity-25 pointer-events-none">
             <svg className="w-full h-full text-slate-400" preserveAspectRatio="none" viewBox="0 0 200 8">
               <path d="M 0 6 Q 50 1, 100 3 T 200 6" fill="none" stroke="currentColor" strokeWidth={1.5} />
             </svg>
           </div>
-          <div className="absolute left-1/4 right-1/4 h-6 bg-cyan-500/20 border border-cyan-400/50 rounded flex items-center justify-between px-2">
-            <div className="w-1.5 h-3 bg-cyan-400 rounded-sm" />
-            <span className="font-mono text-[10px] text-cyan-200 font-bold uppercase tracking-widest select-none">
-              PAN {rangeHours}H
+          <div
+            onPointerDown={handlePointerDown("move")}
+            className="absolute h-6 bg-cyan-500/20 border border-cyan-400/50 rounded flex items-center justify-between px-2 cursor-grab active:cursor-grabbing"
+            style={{
+              left: `${(windowStart / TOTAL_HOURS) * 100}%`,
+              width: `${(windowHours / TOTAL_HOURS) * 100}%`,
+            }}
+          >
+            <div
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                handlePointerDown("resize-left")(e);
+              }}
+              className="w-2 h-full -ml-1 flex items-center justify-center cursor-ew-resize"
+            >
+              <div className="w-1 h-3.5 bg-cyan-300 rounded-sm" />
+            </div>
+            <span className="font-mono text-[10px] text-cyan-200 font-bold uppercase tracking-widest select-none pointer-events-none">
+              PAN {Math.round(windowHours)}H
             </span>
-            <div className="w-1.5 h-3 bg-cyan-400 rounded-sm" />
+            <div
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                handlePointerDown("resize-right")(e);
+              }}
+              className="w-2 h-full -mr-1 flex items-center justify-center cursor-ew-resize"
+            >
+              <div className="w-1 h-3.5 bg-cyan-300 rounded-sm" />
+            </div>
           </div>
         </div>
       </div>

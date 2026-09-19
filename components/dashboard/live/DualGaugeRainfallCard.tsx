@@ -1,6 +1,9 @@
+"use client";
+
 import type { StationMockData } from "@/lib/mockStationData";
 import type { LiveTelemetryExtras } from "@/lib/liveTelemetryData";
 import { scaleSeries, smoothLinePath } from "@/lib/chartPaths";
+import { useAdminSettings } from "@/lib/AdminSettingsContext";
 
 const VIEW_W = 600;
 const VIEW_H = 200;
@@ -14,6 +17,7 @@ export default function DualGaugeRainfallCard({
   data: StationMockData;
   extras: LiveTelemetryExtras;
 }) {
+  const { settings } = useAdminSettings();
   const { hourLabels, rainGauge1, rainGauge2, rainfallHistory } = data;
   const n = hourLabels.length;
   const slot = VIEW_W / n;
@@ -29,7 +33,7 @@ export default function DualGaugeRainfallCard({
 
   const rate1h = rainGauge1[rainGauge1.length - 1] ?? 0;
   const dailyAccum = rainfallHistory[rainfallHistory.length - 1] ?? 0;
-  const varianceOk = extras.rainVariancePct <= 5;
+  const varianceOk = extras.rainVariancePct <= settings.rainGaugeVarianceTolerancePct;
 
   return (
     <div className="bg-card-bg rounded-2xl p-7 border border-border-line shadow-[0_4px_20px_rgba(0,0,0,0.25)]">
@@ -40,16 +44,16 @@ export default function DualGaugeRainfallCard({
               DUAL-GAUGE RAINFALL // RATE VS. CUMULATIVE
             </h2>
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-xs font-semibold">
-              G1 • G2 SYNC (±{extras.rainVariancePct}% TOLERANCE)
+              G1 • G2 SYNC (±{settings.rainGaugeVarianceTolerancePct}% TOLERANCE)
             </span>
           </div>
         </div>
         <div className="flex items-center gap-4 font-mono text-xs">
           <span className="flex items-center gap-1.5 text-cyan-300">
-            <span className="w-3 h-3 bg-cyan-400 rounded-sm" /> Gauge 1 (Tipping)
+            <span className="w-3 h-3 bg-cyan-400 rounded-sm" /> Gauge 1 (451A)
           </span>
           <span className="flex items-center gap-1.5 text-purple-300">
-            <span className="w-3 h-3 bg-purple-400 rounded-sm" /> Gauge 2 (Optical)
+            <span className="w-3 h-3 bg-purple-400 rounded-sm" /> Gauge 2 (451A)
           </span>
           <span className="flex items-center gap-1.5 text-amber-300">
             <span className="w-3 h-0.5 bg-amber-400" /> Cumulative (mm)
