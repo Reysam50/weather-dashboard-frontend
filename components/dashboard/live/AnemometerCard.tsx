@@ -135,11 +135,27 @@ export default function AnemometerCard({ extras }: { extras: LiveTelemetryExtras
         </div>
       </div>
 
-      <div className="flex items-center justify-between font-mono text-xs text-slate-400 pt-3 border-t border-slate-800/60">
-        <span>SONIC PATH: UNIMPEDED</span>
-        <span className="text-cyan-300 font-medium">
-          {bearingStable ? "BEARING STABLE" : "BEARING SHIFTING"}
-        </span>
+      <div className="pt-3 border-t border-slate-800/60">
+        <div className="w-full h-8 mb-2 flex items-end gap-1">
+          {extras.windSpeedHistory.map((v, i) => {
+            const max = Math.max(...extras.windSpeedHistory, 0.1);
+            const pct = Math.max(10, (v / max) * 100);
+            return (
+              <div
+                key={i}
+                className="flex-1 rounded-sm bg-cyan-400/60"
+                style={{ height: `${pct}%` }}
+                title={`${v} km/h`}
+              />
+            );
+          })}
+        </div>
+        <div className="flex items-center justify-between font-mono text-xs text-slate-400">
+          <span>SONIC PATH: UNIMPEDED</span>
+          <span className="text-cyan-300 font-medium">
+            {bearingStable ? "BEARING STABLE" : "BEARING SHIFTING"}
+          </span>
+        </div>
       </div>
     </div>
   );

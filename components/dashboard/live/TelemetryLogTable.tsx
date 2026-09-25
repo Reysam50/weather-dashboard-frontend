@@ -32,8 +32,9 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
       "SHT31 (°C)",
       "Rel Humidity (%)",
       "Barometric (hPa)",
-      "Rain Rate (mm/h)",
-      "Solar (W/m²)",
+      "Minute Rain (mm/min)",
+      "Wind Speed (km/h)",
+      "Wind Dir (deg)",
       "QA Score",
     ];
     const rows = extras.ingestLog.map((row) => [
@@ -43,8 +44,9 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
       row.shtTemp,
       row.humidity,
       row.pressure,
-      row.rainRate,
-      row.solar,
+      row.minuteRain_mm,
+      row.windSpeedKmh,
+      row.windDirectionDeg,
       row.qaScore,
     ]);
     const csv = [header, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
@@ -143,8 +145,9 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
               <th className="py-3.5 px-5 text-right">SHT31 (°C)</th>
               <th className="py-3.5 px-5 text-right">Rel Humidity (%)</th>
               <th className="py-3.5 px-5 text-right">Barometric (hPa)</th>
-              <th className="py-3.5 px-5 text-right">Rain Rate (mm/h)</th>
-              <th className="py-3.5 px-5 text-right">Solar (W/m²)</th>
+              <th className="py-3.5 px-5 text-right">Minute Rain (mm/min)</th>
+              <th className="py-3.5 px-5 text-right">Wind Speed (km/h)</th>
+              <th className="py-3.5 px-5 text-right">Wind Dir</th>
               <th className="py-3.5 px-5 text-center">Sensor QA Status</th>
             </tr>
           </thead>
@@ -169,8 +172,9 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
                   <td className="py-4 px-5 text-right text-slate-300">{row.shtTemp.toFixed(2)}</td>
                   <td className="py-4 px-5 text-right text-cyan-300">{row.humidity.toFixed(1)}</td>
                   <td className="py-4 px-5 text-right">{row.pressure.toFixed(2)}</td>
-                  <td className="py-4 px-5 text-right text-white">{row.rainRate.toFixed(2)}</td>
-                  <td className="py-4 px-5 text-right text-amber-300">{row.solar.toFixed(1)}</td>
+                  <td className="py-4 px-5 text-right text-white">{row.minuteRain_mm.toFixed(2)}</td>
+                  <td className="py-4 px-5 text-right text-emerald-300">{row.windSpeedKmh.toFixed(1)}</td>
+                  <td className="py-4 px-5 text-right text-slate-300">{row.windDirectionDeg}°</td>
                   <td className="py-4 px-5 text-center">
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-[10px]">
                       PASS • {row.qaScore.toFixed(2)}
@@ -181,7 +185,7 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
             })}
             {pageRows.length === 0 && (
               <tr>
-                <td colSpan={9} className="py-8 px-5 text-center text-slate-500">
+                <td colSpan={10} className="py-8 px-5 text-center text-slate-500">
                   No readings match &quot;{query}&quot;.
                 </td>
               </tr>

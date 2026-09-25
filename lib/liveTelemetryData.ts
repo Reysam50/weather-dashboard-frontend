@@ -79,8 +79,12 @@ export interface IngestLogRow {
   shtTemp: number;
   humidity: number;
   pressure: number;
-  rainRate: number;
-  solar: number;
+  /** Rain in this one-minute row, averaged across both gauges — matches
+   * minAvgRain_mm in the real hardware payload. Replaces the old
+   * synthetic hourly "rainRate" figure. */
+  minuteRain_mm: number;
+  windSpeedKmh: number;
+  windDirectionDeg: number;
   qaScore: number;
 }
 
@@ -92,10 +96,6 @@ export interface LiveTelemetryExtras {
   rainVariancePct: number;
   pressureTrend3h: number;
   pressureStabilityLabel: string;
-  solarWm2: number;
-  uvIndex: number;
-  uvCategory: string;
-  solarNoonPeakWm2: number;
   wind: {
     speedKmh: number;
     gustKmh: number;
@@ -104,6 +104,11 @@ export interface LiveTelemetryExtras {
     compass: string;
     bearingStable: boolean;
   };
+  /** Wind speed/direction across the same 8 hourLabels buckets used by
+   * mockStationData's tempHistory/humidityHistory/pressureHistory, for
+   * the Compare screen's wind trend chart and matrix table. */
+  windSpeedHistory: number[];
+  windDirectionHistory: number[];
   forecast7Day: ForecastDay[];
   ingestLog: IngestLogRow[];
   totalReadingsCount: number;
@@ -146,13 +151,18 @@ function buildForecast(offset: number, seed: number): ForecastDay[] {
 
 function buildIngestLog(base: StationMockData, count: number): IngestLogRow[] {
   const anchor = new Date(base.current.lastUpdatedAt);
-  const { airTemp, humidity, pressure, rollAvgRain_mm } = base.current;
+  const { airTemp, humidity, pressure } = base.current;
   const bmpNow = base.bmpTempHistory[base.bmpTempHistory.length - 1];
   const shtNow = base.shtTempHistory[base.shtTempHistory.length - 1];
+  const minute = base.rainByGranularity.minute;
 
   return Array.from({ length: count }, (_, i) => {
     const t = new Date(anchor.getTime() - i * 60 * 1000);
     const drift = Math.sin(i / 9) * 0.15 + i * 0.006;
+    // minute series is oldest→newest; row 0 here is "now" (i minutes ago).
+    const bucket = minute.gauge1.length - 1 - i;
+    const g1 = minute.gauge1[Math.max(0, bucket)] ?? 0;
+    const g2 = minute.gauge2[Math.max(0, bucket)] ?? 0;
     return {
       time: t.toLocaleTimeString([], { hour12: false }),
       airTemp: round2(airTemp - drift),
@@ -160,8 +170,9 @@ function buildIngestLog(base: StationMockData, count: number): IngestLogRow[] {
       shtTemp: round2(shtNow - drift * 1.1),
       humidity: round1(humidity + drift * 1.5),
       pressure: round2(pressure - drift * 0.3),
-      rainRate: round2(Math.max(0, rollAvgRain_mm / 2.4 - i * 0.01)),
-      solar: round1(Math.max(0, 690 - i * 2.8)),
+      minuteRain_mm: round2((g1 + g2) / 2),
+      windSpeedKmh: round1(Math.max(0, 6 + Math.sin(i / 5) * 2.4 - drift)),
+      windDirectionDeg: Math.round((180 + i * 3.5) % 360),
       qaScore: round2(0.97 + (Math.abs(Math.sin(i)) % 0.03)),
     };
   });
@@ -187,9 +198,12 @@ function buildLiveExtras(stationId: string, offset: number, seed: number): LiveT
   const windSpeed = round1(5 + offset + Math.sin(seed) * 1.2);
   const windGust = round1(windSpeed * 2.85);
   const directionDeg = Math.round((90 + offset * 40 + seed * 25) % 360);
-
-  const solarWm2 = round1(Math.max(0, 680 + offset * 10 + Math.sin(seed) * 20));
-  const uvIndex = Math.min(11, Math.max(0, Math.round(solarWm2 / 110)));
+  const windSpeedHistory = base.hourLabels.map((_, i) =>
+    round1(Math.max(0, windSpeed - 1.5 + Math.sin(seed + i / 2) * 1.8))
+  );
+  const windDirectionHistory = base.hourLabels.map((_, i) =>
+    Math.round((directionDeg + i * 12 + seed * 5) % 360)
+  );
 
   return {
     dewPoint: dew,
@@ -199,10 +213,6 @@ function buildLiveExtras(stationId: string, offset: number, seed: number): LiveT
     rainVariancePct,
     pressureTrend3h,
     pressureStabilityLabel: pressureTrend3h >= 0 ? "STABLE HIGH" : "STABLE LOW",
-    solarWm2,
-    uvIndex,
-    uvCategory: uvIndex >= 8 ? "HIGH" : uvIndex >= 6 ? "MOD" : uvIndex >= 3 ? "LOW" : "MIN",
-    solarNoonPeakWm2: round1(solarWm2 + 10),
     wind: {
       speedKmh: windSpeed,
       gustKmh: windGust,
@@ -211,6 +221,8 @@ function buildLiveExtras(stationId: string, offset: number, seed: number): LiveT
       compass: degToCompass(directionDeg),
       bearingStable: true,
     },
+    windSpeedHistory,
+    windDirectionHistory,
     forecast7Day: buildForecast(offset, seed),
     ingestLog: buildIngestLog(base, 60),
     // Representative of a full 24h @ 60s-interval stream (FR-7.2); we only

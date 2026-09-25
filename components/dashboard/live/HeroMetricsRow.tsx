@@ -34,12 +34,10 @@ export default function HeroMetricsRow({
   const h = data.humidityHistory;
   const humidityLabel = data.current.humidity > 80 ? "HIGH" : data.current.humidity < 30 ? "LOW" : "NOMINAL";
 
-  const r = data.rainfallHistory;
-  const rainRatePerHr =
-    r.length >= 2 ? Math.max(0, Number((r[r.length - 1] - r[r.length - 2]).toFixed(1))) : 0;
-  const g1Now = data.rainGauge1[data.rainGauge1.length - 1];
-  const g2Now = data.rainGauge2[data.rainGauge2.length - 1];
-  const rain24h = r[r.length - 1];
+  const minute = data.rainByGranularity.minute;
+  const g1Now = minute.gauge1[minute.gauge1.length - 1];
+  const g2Now = minute.gauge2[minute.gauge2.length - 1];
+  const rain24h = data.current.rollAvgRain_mm;
   const maxBucket = Math.max(...extras.rain6hBuckets, 0.1);
 
   const pressureRangeMin = 990;
@@ -51,6 +49,8 @@ export default function HeroMetricsRow({
       ((data.current.pressure - pressureRangeMin) / (pressureRangeMax - pressureRangeMin)) * 100
     )
   );
+  const pressureHigh = Math.max(...data.pressureHistory);
+  const pressureLow = Math.min(...data.pressureHistory);
 
   return (
     <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
@@ -160,7 +160,7 @@ export default function HeroMetricsRow({
               </div>
             </div>
             <span className="px-2.5 py-1 rounded-md bg-cyan-500/15 text-cyan-300 font-mono text-xs font-semibold">
-              {rainRatePerHr} mm/h
+              {data.current.minAvgRain_mm} mm/min
             </span>
           </div>
           <div className="mt-5 flex items-baseline justify-between">
@@ -202,13 +202,13 @@ export default function HeroMetricsRow({
             })}
           </div>
           <div className="flex items-center justify-between font-mono text-xs text-slate-400">
-            <span>24h Accumulation</span>
+            <span>Rolling Accumulation</span>
             <span className="text-slate-200 font-bold">{rain24h} mm</span>
           </div>
         </div>
       </div>
 
-      {/* Card 4: Pressure & Solar */}
+      {/* Card 4: Pressure */}
       <div className={cardShell}>
         <div>
           <div className="flex items-center justify-between pb-3 border-b border-border-line">
@@ -218,9 +218,9 @@ export default function HeroMetricsRow({
               </div>
               <div>
                 <span className="font-mono text-xs font-semibold uppercase tracking-wider text-slate-300">
-                  Pressure / Solar
+                  Pressure
                 </span>
-                <span className="text-[11px] font-mono text-slate-500 block">BMP360 + PYR</span>
+                <span className="text-[11px] font-mono text-slate-500 block">BMP360</span>
               </div>
             </div>
             <span className="px-2.5 py-1 rounded-md bg-purple-500/15 text-purple-300 font-mono text-xs font-semibold">
@@ -237,10 +237,10 @@ export default function HeroMetricsRow({
             </div>
             <div className="text-right font-mono text-xs space-y-1">
               <div className="text-slate-400">
-                SOLAR: <strong className="text-amber-300">{extras.solarWm2} W/m²</strong>
+                HIGH: <strong className="text-amber-400 font-bold">{pressureHigh.toFixed(1)}</strong>
               </div>
               <div className="text-slate-400">
-                UV INDEX: <strong className="text-secondary">{extras.uvIndex} {extras.uvCategory}</strong>
+                LOW: <strong className="text-cyan-300 font-bold">{pressureLow.toFixed(1)}</strong>
               </div>
             </div>
           </div>

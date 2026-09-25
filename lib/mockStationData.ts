@@ -2,11 +2,37 @@ import { computeSensorBand } from "./sensorBand";
 import type { TrendPoint } from "@/components/widgets/TemperatureTrendChart";
 import type { DailySummaryRow } from "@/components/widgets/DailySummaryTable";
 
+/**
+ * One rain series at a given time resolution — gauge1/gauge2 are the
+ * per-bucket amount from each 451A tipping-bucket gauge (matches the real
+ * hardware payload's minRain1_mm/minRain2_mm at "minute" resolution, and
+ * yestRain1_mm/yestRain2_mm-style daily totals at "daily" resolution —
+ * see lib/types.ts's StationReading and
+ * 03-hardware-integration/hardware-team-clarification-request.md).
+ * `cumulative` is the running rolling total for the window shown (matches
+ * rollAvgRain_mm's role: a continuously-accumulating total, not a
+ * calendar-hour bucket).
+ */
+export interface RainSeries {
+  labels: string[];
+  gauge1: number[];
+  gauge2: number[];
+  cumulative: number[];
+}
+
 export interface StationMockData {
   current: {
     airTemp: number;
     humidity: number;
     pressure: number;
+    /** Rain in the current minute, averaged across both gauges — matches
+     * the hardware payload's minAvgRain_mm. This is the figure the Live
+     * Dashboard leads with (per the minute-level rain requirement), not
+     * an hourly rate derived from hourly buckets. */
+    minAvgRain_mm: number;
+    /** Rolling/cumulative rain total across both gauges — matches the
+     * hardware payload's rollAvgRain_mm. This is a continuously-updating
+     * accumulator, not a fixed "last 1 hour" window. */
     rollAvgRain_mm: number;
     todayHigh: number;
     todayLow: number;
@@ -20,6 +46,16 @@ export interface StationMockData {
   rainGauge1: number[];
   rainGauge2: number[];
   rainAverage: number[];
+  /** Rain at minute/hourly/daily resolution, for the Live Dashboard's
+   * dual-gauge rainfall card granularity toggle. "minute" is the default
+   * view per the minute-rain requirement; "hourly" reuses the same
+   * hourLabels/rainGauge1/rainGauge2/rainfallHistory series above so
+   * nothing that already reads those breaks. */
+  rainByGranularity: {
+    minute: RainSeries;
+    hourly: RainSeries;
+    daily: RainSeries;
+  };
   airTempHistory: number[];
   bmpTempHistory: number[];
   shtTempHistory: number[];
@@ -101,13 +137,65 @@ function buildMockStationData(offset: number, minutesAgo: number): StationMockDa
   ];
 
   const lastDay = dailyRows[dailyRows.length - 1];
+  const rollAvgRain_mm = rainfallHistory[rainfallHistory.length - 1];
+
+  // --- Minute-resolution rain (last 60 minutes) --------------------------
+  // Small per-minute tips from each gauge (matches minRain1_mm/minRain2_mm
+  // in the real hardware payload), plus a rolling cumulative total that
+  // ends at rollAvgRain_mm so the "Cumulative" line on the dual-gauge card
+  // agrees with the headline current reading.
+  const MINUTE_COUNT = 60;
+  const now = new Date();
+  const minuteLabels: string[] = [];
+  const minuteGauge1: number[] = [];
+  const minuteGauge2: number[] = [];
+  const minuteCumulative: number[] = [];
+  let runningTotal = 0;
+  for (let i = MINUTE_COUNT - 1; i >= 0; i--) {
+    const t = new Date(now.getTime() - i * 60 * 1000);
+    minuteLabels.push(t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
+    const burst = Math.max(0, Math.sin((MINUTE_COUNT - i) / 7 + offset) * 0.18 + offset * 0.01);
+    const g1 = round2(Math.max(0, burst + Math.sin(i * 1.7) * 0.03));
+    const g2 = round2(Math.max(0, burst * 0.9 + Math.cos(i * 1.3) * 0.03));
+    minuteGauge1.push(g1);
+    minuteGauge2.push(g2);
+    runningTotal += (g1 + g2) / 2;
+    minuteCumulative.push(round2(runningTotal));
+  }
+  // Rescale so the minute series' own cumulative total lands on
+  // rollAvgRain_mm exactly, rather than an unrelated number.
+  const minuteScale = runningTotal > 0 ? rollAvgRain_mm / runningTotal : 0;
+  const minuteGauge1Scaled = minuteGauge1.map((v) => round2(v * minuteScale));
+  const minuteGauge2Scaled = minuteGauge2.map((v) => round2(v * minuteScale));
+  const minuteCumulativeScaled = minuteCumulative.map((v) => round2(v * minuteScale));
+  const minAvgRain_mm = round2((minuteGauge1Scaled[minuteGauge1Scaled.length - 1] + minuteGauge2Scaled[minuteGauge2Scaled.length - 1]) / 2);
+
+  // --- Hourly-resolution rain — reuses the series already built above ----
+  const hourlyCumulative = rainGauge1.map((_, i) =>
+    round2(rainGauge1.slice(0, i + 1).reduce((a, b) => a + b, 0) + rainGauge2.slice(0, i + 1).reduce((a, b) => a + b, 0))
+  );
+
+  // --- Daily-resolution rain — from the 6-day summary rows below ---------
+  const dailyLabels = dailyRows.map((d) => d.weekday.slice(0, 3));
+  let dailyRunning = 0;
+  const dailyGauge1: number[] = [];
+  const dailyGauge2: number[] = [];
+  const dailyCumulative: number[] = [];
+  dailyRows.forEach((d) => {
+    const total = d.rainTotal ?? 0;
+    dailyGauge1.push(round2(total * 0.52));
+    dailyGauge2.push(round2(total * 0.48));
+    dailyRunning += total;
+    dailyCumulative.push(round1(dailyRunning));
+  });
 
   return {
     current: {
       airTemp: tempHistory[tempHistory.length - 1],
       humidity: humidityHistory[humidityHistory.length - 1],
       pressure: pressureHistory[pressureHistory.length - 1],
-      rollAvgRain_mm: rainfallHistory[rainfallHistory.length - 1],
+      minAvgRain_mm,
+      rollAvgRain_mm,
       todayHigh: lastDay.tempHigh ?? 0,
       todayLow: lastDay.tempLow ?? 0,
       lastUpdatedAt: new Date(Date.now() - minutesAgo * 60 * 1000).toISOString(),
@@ -120,6 +208,26 @@ function buildMockStationData(offset: number, minutesAgo: number): StationMockDa
     rainGauge1,
     rainGauge2,
     rainAverage,
+    rainByGranularity: {
+      minute: {
+        labels: minuteLabels,
+        gauge1: minuteGauge1Scaled,
+        gauge2: minuteGauge2Scaled,
+        cumulative: minuteCumulativeScaled,
+      },
+      hourly: {
+        labels: hourLabels,
+        gauge1: rainGauge1,
+        gauge2: rainGauge2,
+        cumulative: hourlyCumulative,
+      },
+      daily: {
+        labels: dailyLabels,
+        gauge1: dailyGauge1,
+        gauge2: dailyGauge2,
+        cumulative: dailyCumulative,
+      },
+    },
     airTempHistory,
     bmpTempHistory,
     shtTempHistory,

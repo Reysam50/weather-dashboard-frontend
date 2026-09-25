@@ -42,15 +42,19 @@ export default function SynopticOutlookCard({ extras }: { extras: LiveTelemetryE
 
       <div className="p-3.5 rounded-xl bg-[#090d16] border border-border-line flex items-center justify-between font-mono text-xs">
         <div className="flex items-center gap-2.5">
-          <span className="material-symbols-outlined text-[20px] text-secondary">solar_power</span>
+          <span className="material-symbols-outlined text-[20px] text-secondary">air</span>
           <div>
-            <span className="text-white font-bold block">SOLAR NOON PEAK</span>
-            <span className="text-slate-500 text-[11px]">{extras.solarNoonPeakWm2} W/m² GHI</span>
+            <span className="text-white font-bold block">PREVAILING WIND</span>
+            <span className="text-slate-500 text-[11px]">
+              {extras.wind.speedKmh} km/h {extras.wind.compass}
+            </span>
           </div>
         </div>
         <div className="text-right">
-          <span className="text-secondary font-bold block">UV INDEX {extras.uvIndex}.0</span>
-          <span className="text-emerald-400 text-[11px]">{extras.uvCategory} REQ</span>
+          <span className="text-secondary font-bold block">
+            7-DAY RAIN {extras.forecast7Day.reduce((sum, d) => sum + d.rainMm, 0).toFixed(1)}mm
+          </span>
+          <span className="text-emerald-400 text-[11px]">OUTLOOK TOTAL</span>
         </div>
       </div>
     </div>
