@@ -17,9 +17,7 @@ const TELEMETRY_CHANNELS = [
   { id: "pressure", label: "Pressure (hPa)" },
   { id: "minAvgRain_mm", label: "minAvgRain_mm" },
   { id: "minRainRaw", label: "minRain1/2 (Raw)" },
-  { id: "solar", label: "Solar Irradiance" },
-  { id: "windVector", label: "Wind Vector (m/s)" },
-  { id: "batteryBus", label: "Battery & Bus (V)" },
+  { id: "windVector", label: "Wind Speed & Direction" },
   { id: "qaFlag", label: "QA Checksum & Flag" },
 ];
 

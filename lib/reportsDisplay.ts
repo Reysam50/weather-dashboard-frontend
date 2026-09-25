@@ -1,4 +1,4 @@
-import type { ReportFormat, ReportFrequency } from "./types";
+import type { ReportFormat, ReportSchedule } from "./types";
 
 export const FORMAT_STYLES: Record<ReportFormat, string> = {
   csv: "bg-primary-container/15 text-primary-container",
@@ -14,25 +14,38 @@ export const FORMAT_ICONS: Record<ReportFormat, string> = {
   pdf: "picture_as_pdf",
 };
 
-export function recurrenceLabel(frequency: ReportFrequency): string {
-  switch (frequency) {
+function formatCustomDateTime(customDate?: string, customTime?: string): string | null {
+  if (!customDate) return null;
+  const iso = customTime ? `${customDate}T${customTime}` : customDate;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}${
+    customTime ? ` @ ${customTime}` : ""
+  }`;
+}
+
+export function recurrenceLabel(schedule: Pick<ReportSchedule, "frequency" | "customDate" | "customTime">): string {
+  switch (schedule.frequency) {
     case "daily":
       return "Daily @ 08:00 UTC";
     case "weekly":
       return "Weekly @ Sun 23:59";
     case "monthly":
       return "Monthly (1st) 00:00";
-    case "custom":
-      return "Custom cadence";
+    case "custom": {
+      const formatted = formatCustomDateTime(schedule.customDate, schedule.customTime);
+      return formatted ? `Custom — ${formatted}` : "Custom cadence";
+    }
   }
 }
 
 /** Purely a display estimate for "next run" — not backed by a real
  * scheduler yet, so this is derived from the frequency each render
- * rather than stored anywhere. */
-export function nextRunLabel(frequency: ReportFrequency): string {
+ * rather than stored anywhere (except for "custom", which now has a real
+ * stored date/time to compute from). */
+export function nextRunLabel(schedule: Pick<ReportSchedule, "frequency" | "customDate" | "customTime">): string {
   const now = new Date();
-  switch (frequency) {
+  switch (schedule.frequency) {
     case "daily": {
       return `Tomorrow 08:00`;
     }
@@ -44,8 +57,10 @@ export function nextRunLabel(frequency: ReportFrequency): string {
       const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
       return next.toLocaleDateString(undefined, { day: "2-digit", month: "short" }) + " 00:00";
     }
-    case "custom":
-      return "Manual trigger";
+    case "custom": {
+      const formatted = formatCustomDateTime(schedule.customDate, schedule.customTime);
+      return formatted ?? "Not scheduled";
+    }
   }
 }
 

@@ -14,6 +14,8 @@ interface ScheduleReportCardProps {
     stationId: string | null;
     frequency: ReportFrequency;
     format: ReportFormat;
+    customDate?: string;
+    customTime?: string;
   }) => void;
   onDeleteSchedule: (id: string) => void;
 }
@@ -36,10 +38,23 @@ export default function ScheduleReportCard({
   const [stationId, setStationId] = useState<string | null>(defaultStationId);
   const [frequency, setFrequency] = useState<ReportFrequency>("daily");
   const [format, setFormat] = useState<ReportFormat>("csv");
+  const [customDate, setCustomDate] = useState("");
+  const [customTime, setCustomTime] = useState("09:00");
+
+  const isCustom = frequency === "custom";
+  const canSubmit = !isCustom || (customDate && customTime);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onCreateSchedule({ stationId, frequency, format });
+    if (!canSubmit) return;
+    onCreateSchedule({
+      stationId,
+      frequency,
+      format,
+      ...(isCustom ? { customDate, customTime } : {}),
+    });
+    setCustomDate("");
+    setCustomTime("09:00");
   }
 
   function stationName(id: string | null) {
@@ -96,11 +111,38 @@ export default function ScheduleReportCard({
 
           <button
             type="submit"
-            className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary-container hover:bg-primary text-slate-950 font-bold transition-colors"
+            disabled={!canSubmit}
+            className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary-container hover:bg-primary text-slate-950 font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-[16px]">add_circle</span>
             Schedule
           </button>
+
+          {isCustom && (
+            <div className="sm:col-span-4 grid grid-cols-2 gap-2 pt-1">
+              <div>
+                <label className="block text-on-surface-variant mb-1">Run Date</label>
+                <input
+                  type="date"
+                  value={customDate}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setCustomDate(e.target.value)}
+                  required
+                  className="w-full bg-[#0e1320] border border-border-line rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+              <div>
+                <label className="block text-on-surface-variant mb-1">Run Time</label>
+                <input
+                  type="time"
+                  value={customTime}
+                  onChange={(e) => setCustomTime(e.target.value)}
+                  required
+                  className="w-full bg-[#0e1320] border border-border-line rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+            </div>
+          )}
         </form>
       </div>
 
@@ -123,13 +165,13 @@ export default function ScheduleReportCard({
                     </span>
                   </div>
                   <p className="text-[11px] text-on-surface-variant">
-                    {recurrenceLabel(schedule.frequency)} • {schedule.createdBy}
+                    {recurrenceLabel(schedule)} • {schedule.createdBy}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <div className="text-right">
                     <div className="text-[10px] text-on-surface-variant">NEXT RUN</div>
-                    <div className="text-primary-container font-semibold">{nextRunLabel(schedule.frequency)}</div>
+                    <div className="text-primary-container font-semibold">{nextRunLabel(schedule)}</div>
                   </div>
                   <button
                     type="button"

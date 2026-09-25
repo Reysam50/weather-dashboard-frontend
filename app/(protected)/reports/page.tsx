@@ -47,6 +47,8 @@ export default function ReportsPage() {
     stationId: string | null;
     frequency: ReportSchedule["frequency"];
     format: ReportSchedule["format"];
+    customDate?: string;
+    customTime?: string;
   }) {
     // TODO: POST to /reports/schedules — this just appends locally so the
     // flow is testable end-to-end in the meantime.
