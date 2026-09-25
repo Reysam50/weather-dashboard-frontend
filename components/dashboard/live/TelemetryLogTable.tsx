@@ -139,16 +139,16 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
         <table className="w-full text-left font-mono text-xs">
           <thead className="bg-[#0e1320] border-b border-border-line text-slate-400 uppercase tracking-wider text-[11px]">
             <tr>
-              <th className="py-3.5 px-5">Timestamp (CAT)</th>
-              <th className="py-3.5 px-5 text-right">Air Temp (°C)</th>
-              <th className="py-3.5 px-5 text-right">BMP360 (°C)</th>
-              <th className="py-3.5 px-5 text-right">SHT31 (°C)</th>
-              <th className="py-3.5 px-5 text-right">Rel Humidity (%)</th>
-              <th className="py-3.5 px-5 text-right">Barometric (hPa)</th>
-              <th className="py-3.5 px-5 text-right">Minute Rain (mm/min)</th>
-              <th className="py-3.5 px-5 text-right">Wind Speed (km/h)</th>
-              <th className="py-3.5 px-5 text-right">Wind Dir</th>
-              <th className="py-3.5 px-5 text-center">Sensor QA Status</th>
+              <th className="py-3.5 px-5 text-center align-middle whitespace-normal">Timestamp (CAT)</th>
+              <th className="py-3.5 px-5 text-center align-middle whitespace-normal">Air Temp (°C)</th>
+              <th className="py-3.5 px-5 text-center align-middle whitespace-normal">BMP360 (°C)</th>
+              <th className="py-3.5 px-5 text-center align-middle whitespace-normal">SHT31 (°C)</th>
+              <th className="py-3.5 px-5 text-center align-middle whitespace-normal">Rel Humidity (%)</th>
+              <th className="py-3.5 px-5 text-center align-middle whitespace-normal">Barometric (hPa)</th>
+              <th className="py-3.5 px-5 text-center align-middle whitespace-normal">Minute Rain (mm/min)</th>
+              <th className="py-3.5 px-5 text-center align-middle whitespace-normal">Wind Speed (km/h)</th>
+              <th className="py-3.5 px-5 text-center align-middle whitespace-normal">Wind Dir (°)</th>
+              <th className="py-3.5 px-5 text-center align-middle whitespace-normal">Sensor QA Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-line text-slate-300">

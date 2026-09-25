@@ -40,7 +40,7 @@ type RangeTab = "today" | "7d" | "30d" | "custom";
  * temperature chart to a synthetic daily aggregate (lib/compareData.ts's
  * buildDailyAggregate) — the secondary charts and analytics matrix stay
  * on "Today" hourly detail in every tab, labeled as such, rather than
- * pretending humidity/pressure/rain/solar have a real multi-day history
+ * pretending humidity/pressure/rain/wind have a real multi-day history
  * they don't.
  */
 export default function ComparePage() {
@@ -105,6 +105,21 @@ export default function ComparePage() {
     color: colors[s.id],
     values: MOCK_STATION_DATA[s.id]?.fullDayPressureTrend.map((p) => p.y) ?? [],
   }));
+  const rainSeries = onlineStations.slice(0, 2).map((s) => ({
+    station: s,
+    color: colors[s.id],
+    values: MOCK_STATION_DATA[s.id]?.fullDayRainTrend.map((p) => p.y) ?? [],
+  }));
+  const windSpeedSeries = onlineStations.slice(0, 2).map((s) => ({
+    station: s,
+    color: colors[s.id],
+    values: MOCK_STATION_DATA[s.id]?.fullDayWindSpeedTrend.map((p) => p.y) ?? [],
+  }));
+  const windDirectionSeries = onlineStations.slice(0, 2).map((s) => ({
+    station: s,
+    color: colors[s.id],
+    values: MOCK_STATION_DATA[s.id]?.fullDayWindDirectionTrend.map((p) => p.y) ?? [],
+  }));
 
   function avgOf(values: number[]) {
     return values.length ? values.reduce((a, v) => a + v, 0) / values.length : 0;
@@ -117,6 +132,14 @@ export default function ComparePage() {
   const pressureDelta =
     pressureSeries.length === 2
       ? Number((avgOf(pressureSeries[0].values) - avgOf(pressureSeries[1].values)).toFixed(1))
+      : 0;
+  const rainDelta =
+    rainSeries.length === 2
+      ? Number((avgOf(rainSeries[0].values) - avgOf(rainSeries[1].values)).toFixed(1))
+      : 0;
+  const windSpeedDelta =
+    windSpeedSeries.length === 2
+      ? Number((avgOf(windSpeedSeries[0].values) - avgOf(windSpeedSeries[1].values)).toFixed(1))
       : 0;
 
   function toggleStation(id: string) {
@@ -137,7 +160,6 @@ export default function ComparePage() {
       "Parameter",
       ...onlineStations.flatMap((s) => [`${s.name} High`, `${s.name} Low`, `${s.name} Avg`]),
       ...offlineStations.map((s) => `${s.name} (est)`),
-      "Delta",
     ];
     const rows = matrixRows.map((row) => [
       `${row.label} (${row.unit})`,
@@ -146,7 +168,6 @@ export default function ComparePage() {
         return [String(stat?.high ?? ""), String(stat?.low ?? ""), String(stat?.avg ?? "")];
       }),
       ...offlineStations.map((s) => String(row.perOfflineStation[s.id] ?? "")),
-      row.delta ? `${row.delta.text} ${row.delta.tag}` : "",
     ]);
     const csv = [header, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
     downloadCsv(csv, "station-comparison-matrix.csv");
@@ -192,7 +213,7 @@ export default function ComparePage() {
             </span>
           </div>
           <p className="text-sm text-on-surface-variant mt-1 max-w-2xl">
-            Real-time microclimate delta tracking, topographic variance, and anomaly correlation across the
+            Real-time synchronized telemetry, topographic comparison, and anomaly correlation across the
             selected Automatic Weather Station (AWS) network.
           </p>
         </div>
@@ -306,7 +327,45 @@ export default function ComparePage() {
                     : undefined
                 }
               />
+              <MultiStationTrendChart
+                title="Rainfall (mm) — Comparison"
+                subtitle="Cumulative rolling accumulation across the selected stations"
+                series={rainSeries}
+                unit=" mm"
+                hourLabels={fullDayHourLabels}
+                height={200}
+                showArea
+                deltaBadge={
+                  rainSeries.length === 2
+                    ? { text: `Δ ${rainDelta >= 0 ? "+" : ""}${rainDelta} mm Offset`, colorClass: "text-secondary" }
+                    : undefined
+                }
+              />
+              <MultiStationTrendChart
+                title="Wind Speed (km/h) — Comparison"
+                subtitle="Sustained wind speed across the selected stations"
+                series={windSpeedSeries}
+                unit=" km/h"
+                hourLabels={fullDayHourLabels}
+                height={200}
+                deltaBadge={
+                  windSpeedSeries.length === 2
+                    ? { text: `Δ ${windSpeedDelta >= 0 ? "+" : ""}${windSpeedDelta} km/h Offset`, colorClass: "text-primary-container" }
+                    : undefined
+                }
+              />
             </div>
+          )}
+
+          {!heroDays && windDirectionSeries.length > 0 && (
+            <MultiStationTrendChart
+              title="Wind Direction (°) — Comparison"
+              subtitle="Compass heading, 0-360° — a wrap from 360° back to 0° is a bearing crossing due north, not a drop to calm"
+              series={windDirectionSeries}
+              unit="°"
+              hourLabels={fullDayHourLabels}
+              height={200}
+            />
           )}
 
           <ComparisonMatrixTable

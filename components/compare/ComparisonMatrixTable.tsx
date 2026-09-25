@@ -66,7 +66,6 @@ export default function ComparisonMatrixTable({
                   {s.name}
                 </th>
               ))}
-              <th className="py-2.5 px-3 text-right whitespace-nowrap">Microclimate Delta (Δ)</th>
             </tr>
             <tr className="bg-[#080c14] text-on-surface-variant text-[10px] border-t border-border-line">
               <th className="sticky left-0 bg-[#080c14] z-10" />
@@ -80,7 +79,6 @@ export default function ComparisonMatrixTable({
               {offline.map((s) => (
                 <th key={s.id} className="py-1.5 px-2 text-center font-normal">Last/Modeled</th>
               ))}
-              <th className="py-1.5 px-2 text-right font-normal">Variance</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-line text-slate-300">
@@ -111,15 +109,6 @@ export default function ComparisonMatrixTable({
                     {row.perOfflineStation[s.id] ?? "—"} (est)
                   </td>
                 ))}
-                <td className="py-3 px-3 text-right">
-                  {row.delta ? (
-                    <span className={row.delta.positive ? "text-secondary font-bold" : "text-primary-container font-bold"}>
-                      {row.delta.text} <span className="text-on-surface-variant font-normal">{row.delta.tag}</span>
-                    </span>
-                  ) : (
-                    <span className="text-on-surface-variant">—</span>
-                  )}
-                </td>
               </tr>
             ))}
           </tbody>

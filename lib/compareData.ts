@@ -23,18 +23,6 @@ export function assignStationColors(stations: Station[]): Record<string, string>
   return colors;
 }
 
-/** Rough bell curve peaking mid-array, anchored so its last point matches
- * the station's current solar reading (extras don't carry a full
- * history, only the latest value) — good enough for a comparison chart,
- * not meant to be a real irradiance model. */
-export function buildSolarSeries(currentWm2: number, length: number): number[] {
-  return Array.from({ length }, (_, i) => {
-    const t = i / Math.max(1, length - 1);
-    const bell = Math.sin(Math.PI * t) ** 1.3;
-    return Math.round(currentWm2 * (0.15 + 0.85 * bell));
-  });
-}
-
 export interface Finding {
   icon: string;
   color: string;
@@ -125,11 +113,7 @@ export interface MatrixRow {
   unit: string;
   perOnlineStation: Record<string, MetricStats>;
   perOfflineStation: Record<string, number>;
-  delta: { text: string; tag: string; positive: boolean } | null;
 }
-
-const RAIN_TAG = (v: number) => (v > 0 ? "[Orographic]" : "[Uniform]");
-const SOLAR_TAG = (v: number) => (v > 0 ? "[High-Alt Flux]" : "[Attenuated]");
 
 export function buildMatrixRows(stations: Station[]): MatrixRow[] {
   const online = stations.filter((s) => s.status === "online");
@@ -141,8 +125,7 @@ export function buildMatrixRows(stations: Station[]): MatrixRow[] {
     icon: string,
     unit: string,
     getSeries: (id: string) => number[],
-    getOfflineEstimate: (id: string) => number,
-    tag: (delta: number, aName: string, bName: string) => { text: string; tag: string }
+    getOfflineEstimate: (id: string) => number
   ): MatrixRow {
     const perOnlineStation: MatrixRow["perOnlineStation"] = {};
     online.forEach((s) => {
@@ -153,19 +136,7 @@ export function buildMatrixRows(stations: Station[]): MatrixRow[] {
       perOfflineStation[s.id] = getOfflineEstimate(s.id);
     });
 
-    let delta: MatrixRow["delta"] = null;
-    if (online.length >= 2) {
-      const sorted = [...online].sort(
-        (a, b) => (perOnlineStation[b.id].avg ?? 0) - (perOnlineStation[a.id].avg ?? 0)
-      );
-      const top = sorted[0];
-      const second = sorted[1];
-      const diff = Number(((perOnlineStation[top.id].avg ?? 0) - (perOnlineStation[second.id].avg ?? 0)).toFixed(1));
-      const { text, tag: tagText } = tag(diff, top.name, second.name);
-      delta = { text, tag: tagText, positive: diff >= 0 };
-    }
-
-    return { key, label, icon, unit, perOnlineStation, perOfflineStation, delta };
+    return { key, label, icon, unit, perOnlineStation, perOfflineStation };
   }
 
   return [
@@ -175,8 +146,7 @@ export function buildMatrixRows(stations: Station[]): MatrixRow[] {
       "device_thermostat",
       "°C",
       (id) => MOCK_STATION_DATA[id]?.fullDayTrend.map((p) => p.y) ?? [],
-      (id) => MOCK_STATION_DATA[id]?.current.airTemp ?? 0,
-      (diff) => ({ text: `+${diff}°C`, tag: diff > 0.5 ? "[Inversion]" : "[Gradient]" })
+      (id) => MOCK_STATION_DATA[id]?.current.airTemp ?? 0
     ),
     buildRow(
       "humidity",
@@ -184,8 +154,7 @@ export function buildMatrixRows(stations: Station[]): MatrixRow[] {
       "humidity_percentage",
       "%",
       (id) => MOCK_STATION_DATA[id]?.fullDayHumidityTrend.map((p) => p.y) ?? [],
-      (id) => MOCK_STATION_DATA[id]?.current.humidity ?? 0,
-      (diff) => ({ text: `${diff}%`, tag: diff < 0 ? "[Plateau Lag]" : "[Valley Trap]" })
+      (id) => MOCK_STATION_DATA[id]?.current.humidity ?? 0
     ),
     buildRow(
       "pressure",
@@ -193,8 +162,7 @@ export function buildMatrixRows(stations: Station[]): MatrixRow[] {
       "speed",
       "hPa",
       (id) => MOCK_STATION_DATA[id]?.fullDayPressureTrend.map((p) => p.y) ?? [],
-      (id) => MOCK_STATION_DATA[id]?.current.pressure ?? 0,
-      (diff) => ({ text: `${diff >= 0 ? "+" : ""}${diff} hPa`, tag: "[Gradient]" })
+      (id) => MOCK_STATION_DATA[id]?.current.pressure ?? 0
     ),
     buildRow(
       "rain",
@@ -202,21 +170,27 @@ export function buildMatrixRows(stations: Station[]): MatrixRow[] {
       "rainy",
       "mm/h",
       (id) => MOCK_STATION_DATA[id]?.rainAverage ?? [],
-      () => 0,
-      (diff) => ({ text: `${diff >= 0 ? "+" : ""}${diff} mm`, tag: RAIN_TAG(diff) })
+      () => 0
     ),
     buildRow(
-      "solar",
-      "Solar Radiation",
-      "wb_sunny",
-      "W/m²",
-      (id) => {
-        const base = MOCK_STATION_DATA[id];
-        const extras = getLiveTelemetryExtras(id);
-        return base ? buildSolarSeries(extras.solarWm2, base.hourLabels.length) : [];
-      },
-      (id) => Math.round(getLiveTelemetryExtras(id).solarWm2 * 0.55),
-      (diff) => ({ text: `${diff >= 0 ? "+" : ""}${diff} W`, tag: SOLAR_TAG(diff) })
+      "windSpeed",
+      "Wind Speed",
+      "air",
+      "km/h",
+      (id) => getLiveTelemetryExtras(id).windSpeedHistory,
+      (id) => getLiveTelemetryExtras(id).wind.speedKmh
+    ),
+    // Circular data — high/low/avg here is a simple arithmetic mean of
+    // degrees, which is only meaningful when a station's heading doesn't
+    // wrap past 0/360 within the window. A real backend should compute
+    // this from the average of the wind's u/v vector components instead.
+    buildRow(
+      "windDirection",
+      "Wind Direction",
+      "explore",
+      "°",
+      (id) => getLiveTelemetryExtras(id).windDirectionHistory,
+      (id) => getLiveTelemetryExtras(id).wind.directionDeg
     ),
   ];
 }

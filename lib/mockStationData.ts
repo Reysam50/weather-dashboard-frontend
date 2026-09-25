@@ -67,6 +67,14 @@ export interface StationMockData {
    * points, 06:00-13:00 only) while claiming to show a full day. */
   fullDayHumidityTrend: TrendPoint[];
   fullDayPressureTrend: TrendPoint[];
+  /** Full 24h wind-direction wander, degrees 0-360, for the Live
+   * Dashboard's wind-direction trend card. */
+  fullDayWindDirectionTrend: TrendPoint[];
+  /** Full 24h rainfall accumulation and wind speed, same convention as
+   * the series above — for the Compare screen's rainfall/wind-speed
+   * trend charts. */
+  fullDayRainTrend: TrendPoint[];
+  fullDayWindSpeedTrend: TrendPoint[];
   dailyRows: DailySummaryRow[];
 }
 
@@ -123,6 +131,39 @@ function buildMockStationData(offset: number, minutesAgo: number): StationMockDa
     1012.0, 1012.2, 1012.6, 1013.0, 1013.4, 1013.6, 1013.5, 1013.1,
   ].map((v) => round1(v + offset * 0.5));
   const fullDayPressureTrend: TrendPoint[] = fullDayPressureCurve.map((y, hour) => ({
+    x: todayMidnight.getTime() + hour * 60 * 60 * 1000,
+    y,
+  }));
+
+  // Slow diurnal wind-direction wander (prevailing bearing drifts through
+  // the day with some hour-to-hour noise), wrapped to 0-360°.
+  const windBase = (90 + offset * 40) % 360;
+  const fullDayWindDirectionCurve = Array.from({ length: 24 }, (_, hour) => {
+    const wander = Math.sin(hour / 5 + offset) * 35 + Math.sin(hour / 2.3) * 10;
+    return Math.round(((windBase + wander) % 360 + 360) % 360);
+  });
+  const fullDayWindDirectionTrend: TrendPoint[] = fullDayWindDirectionCurve.map((y, hour) => ({
+    x: todayMidnight.getTime() + hour * 60 * 60 * 1000,
+    y,
+  }));
+
+  // Full-day rainfall accumulation (24h), monotonically non-decreasing —
+  // same shape as the 8-point rainfallHistory above, extended to a full
+  // day for the Compare screen's rainfall trend chart.
+  const fullDayRainCurve = [
+    0, 0, 0, 0, 0, 0, 0, 0.2, 0.6, 1.2, 1.8, 2.3, 2.9, 3.4, 3.7, 3.9, 4.0, 4.1, 4.1, 4.2, 4.2, 4.2, 4.2, 4.2,
+  ].map((v) => round1(Math.max(0, v + offset * 0.3)));
+  const fullDayRainTrend: TrendPoint[] = fullDayRainCurve.map((y, hour) => ({
+    x: todayMidnight.getTime() + hour * 60 * 60 * 1000,
+    y,
+  }));
+
+  // Full-day wind speed (24h) — picks up with afternoon heating, calmer
+  // overnight, for the Compare screen's wind speed trend chart.
+  const fullDayWindSpeedCurve = [
+    3.2, 2.8, 2.5, 2.3, 2.4, 2.9, 3.8, 5.1, 6.4, 7.6, 8.5, 9.1, 9.4, 9.2, 8.6, 7.8, 6.9, 5.8, 4.9, 4.2, 3.8, 3.5, 3.3, 3.2,
+  ].map((v) => round1(Math.max(0, v + offset)));
+  const fullDayWindSpeedTrend: TrendPoint[] = fullDayWindSpeedCurve.map((y, hour) => ({
     x: todayMidnight.getTime() + hour * 60 * 60 * 1000,
     y,
   }));
@@ -235,6 +276,9 @@ function buildMockStationData(offset: number, minutesAgo: number): StationMockDa
     fullDayTrend,
     fullDayHumidityTrend,
     fullDayPressureTrend,
+    fullDayWindDirectionTrend,
+    fullDayRainTrend,
+    fullDayWindSpeedTrend,
     dailyRows,
   };
 }
