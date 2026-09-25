@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import UserTable from "@/components/admin/UserTable";
 import UserForm from "@/components/admin/UserForm";
+import StationScopeModal from "@/components/admin/StationScopeModal";
 import SettingsPanel from "@/components/admin/SettingsPanel";
 import AuditLogTable from "@/components/admin/AuditLogTable";
 import { mockStations } from "@/lib/mockStations";
@@ -14,6 +15,7 @@ import { useAdminSettings } from "@/lib/AdminSettingsContext";
 import { SEED_AUDIT_LOG, newAuditEntry, type AuditEntry } from "@/lib/auditLog";
 import { ROLE_LABELS } from "@/lib/mockAuth";
 import { useAuth } from "@/lib/AuthContext";
+import { apiFetch, ApiError } from "@/lib/api";
 
 /**
  * Admin & Access — rebuilt to match admin_access_control_panel_redesigned.
@@ -79,17 +81,95 @@ export default function AdminPage() {
     setEntries((prev) => [newAuditEntry("you@this-session", action, target, status), ...prev]);
   }
 
-  function handleSaveUser(input: Omit<User, "id"> & { id?: string }) {
-    if (input.id) {
-      const id = input.id;
-      setUsers((prev) => prev.map((u) => (u.id === id ? { ...input, id } : u)));
-      logAction("USER_PERMISSIONS_UPDATED", input.email);
-    } else {
-      setUsers((prev) => [...prev, { ...input, id: crypto.randomUUID() }]);
-      logAction("USER_PROVISIONED", input.email);
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [saveUserError, setSaveUserError] = useState<string | null>(null);
+  const [isSavingScope, setIsSavingScope] = useState(false);
+  const [saveScopeError, setSaveScopeError] = useState<string | null>(null);
+
+  async function handleSaveUser(input: Omit<User, "id"> & { id?: string; tempPassword?: string }) {
+    setIsSavingUser(true);
+    setSaveUserError(null);
+    const { tempPassword, ...userFields } = input;
+    try {
+      if (userFields.id) {
+        // PATCH /users/{id} — request/response only document role/stations
+        // in api-specification.md §3, but "all fields optional" per its
+        // own description, so email is included too. `name` has nowhere
+        // to go server-side yet (see UserForm.tsx's docblock) — not sent.
+        const id = userFields.id;
+        await apiFetch(`/users/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            email: userFields.email,
+            role: userFields.role,
+            stations: userFields.role === "station_operator" ? userFields.stationIds : [],
+          }),
+        });
+        setUsers((prev) => prev.map((u) => (u.id === id ? { ...userFields, id } : u)));
+        logAction("USER_PERMISSIONS_UPDATED", userFields.email);
+      } else {
+        const created = await apiFetch<{ id: string }>("/users", {
+          method: "POST",
+          body: JSON.stringify({
+            email: userFields.email,
+            password: tempPassword,
+            role: userFields.role,
+            stations: userFields.role === "station_operator" ? userFields.stationIds : [],
+          }),
+        });
+        setUsers((prev) => [...prev, { ...userFields, id: created.id }]);
+        logAction("USER_PROVISIONED", userFields.email);
+      }
+      setEditingUser(null);
+      setIsAddingUser(false);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 422) {
+        setSaveUserError("Station Operators need at least one assigned station.");
+        return;
+      }
+      // No backend reachable yet — keep the flow usable locally, same
+      // pattern as everywhere else in this app.
+      if (userFields.id) {
+        const id = userFields.id;
+        setUsers((prev) => prev.map((u) => (u.id === id ? { ...userFields, id } : u)));
+        logAction("USER_PERMISSIONS_UPDATED", userFields.email);
+      } else {
+        setUsers((prev) => [...prev, { ...userFields, id: crypto.randomUUID() }]);
+        logAction("USER_PROVISIONED", userFields.email);
+      }
+      setEditingUser(null);
+      setIsAddingUser(false);
+    } finally {
+      setIsSavingUser(false);
     }
-    setEditingUser(null);
-    setIsAddingUser(false);
+  }
+
+  async function handleSaveStationScope(userId: string, stationIds: string[]) {
+    setIsSavingScope(true);
+    setSaveScopeError(null);
+    const user = users.find((u) => u.id === userId);
+    try {
+      // POST /users/{id}/stations — replaces (not appends to) the
+      // assignment list, per api-specification.md §3.
+      await apiFetch(`/users/${userId}/stations`, {
+        method: "POST",
+        body: JSON.stringify({ stations: stationIds }),
+      });
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, stationIds } : u)));
+      logAction("STATION_SCOPE_UPDATED", user?.email ?? userId);
+      setScopeUser(null);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setSaveScopeError("Something went wrong saving station scope. Please try again.");
+        return;
+      }
+      // No backend reachable yet — same local fallback pattern as above.
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, stationIds } : u)));
+      logAction("STATION_SCOPE_UPDATED", user?.email ?? userId);
+      setScopeUser(null);
+    } finally {
+      setIsSavingScope(false);
+    }
   }
 
   function handleToggleSession(id: string) {
@@ -312,18 +392,31 @@ export default function AdminPage() {
 
       {activeTab === "audit" && <AuditLogTable entries={entries} />}
 
-      {(showForm || scopeUser) && (
+      {showForm && (
         <UserForm
           stations={mockStations}
-          editingUser={editingUser ?? scopeUser}
-          onSave={(input) => {
-            handleSaveUser(input);
-            setScopeUser(null);
-          }}
+          editingUser={editingUser}
+          onSave={handleSaveUser}
+          isSaving={isSavingUser}
+          error={saveUserError}
           onCancel={() => {
             setEditingUser(null);
             setIsAddingUser(false);
+            setSaveUserError(null);
+          }}
+        />
+      )}
+
+      {scopeUser && (
+        <StationScopeModal
+          user={scopeUser}
+          stations={mockStations}
+          onSave={handleSaveStationScope}
+          isSaving={isSavingScope}
+          error={saveScopeError}
+          onClose={() => {
             setScopeUser(null);
+            setSaveScopeError(null);
           }}
         />
       )}

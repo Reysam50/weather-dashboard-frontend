@@ -2,7 +2,6 @@ export interface StationHardwareInfo {
   firmware: string;
   firmwareUpToDate: boolean;
   sensorSuite: { label: string; healthy: boolean }[];
-  ingestMethod: string;
   geolocationLabel: string;
   /** Real-world-plausible elevation for this site (Zomba Plateau genuinely
    * sits ~1,500m up; Blantyre and Zomba town are both roughly 900-1,100m) —
@@ -28,7 +27,6 @@ export const STATION_HARDWARE: Record<string, StationHardwareInfo> = {
       { label: "SHT31 [Humidity]", healthy: true },
       { label: "451A x2 [Rain]", healthy: true },
     ],
-    ingestMethod: "SSE WebSocket 60s stream",
     geolocationLabel: "Zomba District, UNIMA Campus Roof",
     elevationM: 948,
     terrainLabel: "BASIN",
@@ -43,7 +41,6 @@ export const STATION_HARDWARE: Record<string, StationHardwareInfo> = {
       { label: "SHT31 [Humidity]", healthy: true },
       { label: "451A x1 [Rain]", healthy: true },
     ],
-    ingestMethod: "Cellular 2G/LTE-M fallback",
     geolocationLabel: "Forestry Edge Post",
     elevationM: 1533,
     terrainLabel: "ESCARPMENT",
@@ -58,7 +55,6 @@ export const STATION_HARDWARE: Record<string, StationHardwareInfo> = {
       { label: "SHT31 [Unresponsive]", healthy: false },
       { label: "451A x2 [Rain]", healthy: true },
     ],
-    ingestMethod: "Solar charge depletion alert",
     geolocationLabel: "Polytechnic / Chichiri Compound",
     elevationM: 1039,
     terrainLabel: "URBAN",
@@ -75,7 +71,6 @@ const FALLBACK_HARDWARE: StationHardwareInfo = {
     { label: "SHT31 [Humidity]", healthy: true },
     { label: "451A x2 [Rain]", healthy: true },
   ],
-  ingestMethod: "SSE WebSocket 60s stream",
   geolocationLabel: "Unregistered geolocation label",
   elevationM: 1000,
   terrainLabel: "FIELD SITE",

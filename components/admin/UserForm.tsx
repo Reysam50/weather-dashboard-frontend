@@ -7,8 +7,10 @@ import SearchableToggleList from "@/components/dashboard/SearchableToggleList";
 interface UserFormProps {
   stations: Station[];
   editingUser: User | null;
-  onSave: (user: Omit<User, "id"> & { id?: string }) => void;
+  onSave: (user: Omit<User, "id"> & { id?: string; tempPassword?: string }) => void;
   onCancel: () => void;
+  isSaving?: boolean;
+  error?: string | null;
 }
 
 const ROLE_OPTIONS: { value: User["role"]; label: string }[] = [
@@ -18,19 +20,40 @@ const ROLE_OPTIONS: { value: User["role"]; label: string }[] = [
 ];
 
 /**
- * Add/edit user modal — matches POST /users, PATCH /users/{id}, and
- * POST /users/{id}/stations (api-specification.md §3). Station assignment
- * only appears for Station Operator: per stakeholder-analysis.md,
- * Administrator/Technical Team already see every station.
+ * Add/edit user modal — matches POST /users and PATCH /users/{id}
+ * (api-specification.md §3). Station assignment only appears for Station
+ * Operator: per stakeholder-analysis.md, Administrator/Technical Team
+ * already see every station. ("Configure Station Scope" on the roster
+ * table is a separate, dedicated control now — StationScopeModal.tsx,
+ * wired to POST /users/{id}/stations — this form used to be reused for
+ * that too, which was the "these two buttons do the same thing" bug.)
  *
- * Same modal shell pattern as ProvisionStationModal/CalibrationDrawer on
- * the Station Map screen.
+ * Data-model gap: GET /users' real response shape (api-specification.md
+ * §3) is `{id, email, role, stations, created_at}` — no `name` field.
+ * This form still collects one (used all over this screen's display —
+ * avatars, the roster table, etc.) but nowhere to persist it server-side
+ * yet. TODO (backend developer): add a `name` column, or TODO (frontend
+ * developer): drop it from lib/types.ts's User and derive a display name
+ * from email instead, once that's decided.
+ *
+ * New users need a temporary password per POST /users' request schema
+ * ("user changes on first login" — see ChangePasswordModal.tsx for that
+ * flow) — generated here rather than typed, then shown to the admin to
+ * relay to the new user.
  */
-export default function UserForm({ stations, editingUser, onSave, onCancel }: UserFormProps) {
+function generateTempPassword() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  let out = "";
+  for (let i = 0; i < 12; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
+
+export default function UserForm({ stations, editingUser, onSave, onCancel, isSaving = false, error = null }: UserFormProps) {
   const [name, setName] = useState(editingUser?.name ?? "");
   const [email, setEmail] = useState(editingUser?.email ?? "");
   const [role, setRole] = useState<User["role"]>(editingUser?.role ?? "station_operator");
   const [stationIds, setStationIds] = useState<string[]>(editingUser?.stationIds ?? []);
+  const [tempPassword] = useState(() => generateTempPassword());
 
   function toggleStation(id: string) {
     setStationIds((current) =>
@@ -49,6 +72,7 @@ export default function UserForm({ stations, editingUser, onSave, onCancel }: Us
       email: email.trim(),
       role,
       stationIds: role === "station_operator" ? stationIds : [],
+      ...(editingUser ? {} : { tempPassword }),
     });
   }
 
@@ -84,6 +108,9 @@ export default function UserForm({ stations, editingUser, onSave, onCancel }: Us
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+          {error && (
+            <div className="p-3 rounded-xl bg-error/10 border border-error/25 text-error text-sm">{error}</div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block">
               <span className="text-xs font-mono font-semibold text-slate-300 block mb-1.5">Name</span>
@@ -137,13 +164,28 @@ export default function UserForm({ stations, editingUser, onSave, onCancel }: Us
             </div>
           )}
 
+          {!editingUser && (
+            <div className="p-3 rounded-xl bg-[#080c14] border border-border-line">
+              <span className="text-xs font-mono font-semibold text-slate-300 block mb-1.5">
+                Temporary Password
+              </span>
+              <p className="text-[10px] text-on-surface-variant mb-2">
+                Generated automatically — relay this to the new user; they&apos;ll be required to
+                change it on first login.
+              </p>
+              <code className="block w-full bg-card-bg border border-border-line rounded-lg px-3 py-2 text-sm text-primary-container tracking-wider">
+                {tempPassword}
+              </code>
+            </div>
+          )}
+
           <div className="flex gap-2 pt-2">
             <button
               type="submit"
-              disabled={!canSave}
+              disabled={!canSave || isSaving}
               className="flex-1 py-2.5 rounded-lg bg-primary-container text-slate-950 font-bold text-sm hover:bg-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {editingUser ? "Save Changes" : "Add User"}
+              {isSaving ? "Saving…" : editingUser ? "Save Changes" : "Add User"}
             </button>
             <button
               type="button"

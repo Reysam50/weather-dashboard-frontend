@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { DEFAULT_CALIBRATION, type CalibrationOffsets } from "@/lib/calibration";
 import { useAdminSettings } from "@/lib/AdminSettingsContext";
 import { getStationHardware } from "@/lib/stationHardware";
+import { apiFetch, ApiError } from "@/lib/api";
 import type { Station } from "@/lib/types";
 
 const StationMap = dynamic(() => import("@/components/map/StationMap"), {
@@ -40,6 +41,21 @@ const StationMap = dynamic(() => import("@/components/map/StationMap"), {
  * by the search bar, the map's own markers + inspect pod, and the Fleet
  * Inventory table below — matching the redesign's layout, which drops the
  * sidebar entirely.
+ *
+ * TODO (frontend developer) — per api-specification.md §4:
+ * - GET /stations belongs in lib/StationContext.tsx (every screen reads
+ *   station data from there), replacing its static mockStations import.
+ * - No PATCH /stations/{id} call exists yet for editing an existing
+ *   station's name/location/device id — not currently exposed in this
+ *   UI at all, only add-new.
+ * - Calibration offsets and the Ping action have no backing endpoint in
+ *   the spec yet — both stay local-only/simulated (see
+ *   CalibrationDrawer.tsx and StationInspectPod.tsx's handlePing) until
+ *   one exists.
+ *
+ * handleSaveStation below DOES call the real POST /stations already
+ * (falls back to a local-only station if there's no backend to answer
+ * it yet, same pattern as the rest of this app).
  */
 export default function StationsPage() {
   const { user } = useAuth();
@@ -99,22 +115,73 @@ export default function StationsPage() {
     setIsPlacingStation(true);
   }
 
-  function handleSaveStation(newStation: {
+  const [isSavingStation, setIsSavingStation] = useState(false);
+  const [saveStationError, setSaveStationError] = useState<string | null>(null);
+
+  async function handleSaveStation(newStation: {
     name: string;
     particleDeviceId: string;
     latitude: number;
     longitude: number;
   }) {
-    const station: Station = {
-      id: crypto.randomUUID(),
-      status: "offline",
-      lastSeenAt: null,
-      ...newStation,
-    };
-    setStations((prev) => [...prev, station]);
-    setSelectedStationId(station.id);
-    setIsProvisioning(false);
-    setPendingCoords(null);
+    setIsSavingStation(true);
+    setSaveStationError(null);
+    try {
+      // POST /stations (Technical Team only, api-specification.md §4).
+      // Request/response use snake_case; Station uses camelCase, hence
+      // the mapping both ways.
+      const created = await apiFetch<{
+        id: string;
+        name: string;
+        latitude: number;
+        longitude: number;
+        particle_device_id: string;
+        status: Station["status"];
+        last_seen_at: string | null;
+      }>("/stations", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newStation.name,
+          latitude: newStation.latitude,
+          longitude: newStation.longitude,
+          particle_device_id: newStation.particleDeviceId,
+        }),
+      });
+      const station: Station = {
+        id: created.id,
+        name: created.name,
+        latitude: created.latitude,
+        longitude: created.longitude,
+        particleDeviceId: created.particle_device_id,
+        status: created.status,
+        lastSeenAt: created.last_seen_at,
+      };
+      setStations((prev) => [...prev, station]);
+      setSelectedStationId(station.id);
+      setIsProvisioning(false);
+      setPendingCoords(null);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setSaveStationError("That Particle device ID is already paired to another station.");
+        return;
+      }
+      // No backend reachable yet — fall back to a local-only station so
+      // the flow stays testable end-to-end, same pattern as everywhere
+      // else in this app that has a real endpoint to call but no
+      // backend to answer it yet.
+      const station: Station = {
+        id: crypto.randomUUID(),
+        status: "offline",
+        lastSeenAt: null,
+        ...newStation,
+      };
+      setStations((prev) => [...prev, station]);
+      setSelectedStationId(station.id);
+      setIsProvisioning(false);
+      setPendingCoords(null);
+    } finally {
+      setIsSavingStation(false);
+    }
   }
 
   function handleCalibrateSave(stationId: string, offsets: CalibrationOffsets) {
@@ -185,7 +252,7 @@ export default function StationsPage() {
           </span>
         </div>
         <span className="px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-secondary font-semibold">
-          ROLE: {ROLE_LABELS[user.role]} ({canManage ? "Full Write" : "Read Only"})
+          ROLE: {ROLE_LABELS[user.role]}
         </span>
       </div>
 
@@ -318,9 +385,12 @@ export default function StationsPage() {
           initialLongitude={pendingCoords?.lng}
           onRepickLocation={handleRepickLocation}
           onSave={handleSaveStation}
+          isSaving={isSavingStation}
+          error={saveStationError}
           onClose={() => {
             setIsProvisioning(false);
             setPendingCoords(null);
+            setSaveStationError(null);
           }}
         />
       )}

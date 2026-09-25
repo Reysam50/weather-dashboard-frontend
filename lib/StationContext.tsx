@@ -17,6 +17,12 @@ import { useAuth } from "./AuthContext";
  * provider bakes that in by ignoring setSelectedStationId when the role
  * doesn't allow picking, same restriction the old dashboard-local state used
  * to enforce.
+ *
+ * TODO (frontend developer): `stations` still comes from the static
+ * lib/mockStations.ts import below — replace with a GET /stations fetch
+ * (api-specification.md §4) in an effect here once a backend exists. An
+ * Operator's request is scoped server-side to their assigned station(s)
+ * automatically, so no client-side filtering is needed on top of that.
  */
 interface StationContextValue {
   stations: Station[];

@@ -9,7 +9,7 @@ interface NewStationInput {
   longitude: number;
 }
 
-const SENSOR_CHECKS = ["SHT31 [Air/Humidity]", "BMP280 [Barometric]", "Dual Rain Gauge Bus"];
+const SENSOR_CHECKS = ["MCP9808 [Primary Temp]", "BMP360 [Barometric]", "SHT31 [Humidity]", "451A Rain Gauge Bus"];
 
 export default function ProvisionStationModal({
   initialLatitude,
@@ -17,12 +17,16 @@ export default function ProvisionStationModal({
   onRepickLocation,
   onSave,
   onClose,
+  isSaving = false,
+  error = null,
 }: {
   initialLatitude?: number;
   initialLongitude?: number;
   onRepickLocation: () => void;
   onSave: (station: NewStationInput) => void;
   onClose: () => void;
+  isSaving?: boolean;
+  error?: string | null;
 }) {
   const [name, setName] = useState("");
   const [particleDeviceId, setParticleDeviceId] = useState("");
@@ -209,14 +213,22 @@ export default function ProvisionStationModal({
           </div>
         </div>
 
+        <div className="px-5">
+          {error && (
+            <div className="p-3 rounded-xl bg-error/10 border border-error/25 text-error text-xs font-mono">
+              {error}
+            </div>
+          )}
+        </div>
+
         <div className="p-5 border-t border-border-line flex gap-2">
           <button
             type="button"
             onClick={handleSave}
-            disabled={!canSave}
+            disabled={!canSave || isSaving}
             className="flex-1 py-2.5 rounded-lg bg-primary-container text-slate-950 font-bold text-sm hover:bg-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Provision Station
+            {isSaving ? "Provisioning…" : "Provision Station"}
           </button>
           <button
             type="button"

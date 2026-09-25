@@ -158,23 +158,18 @@ export default function FleetInventoryTable({
                     </div>
                   </td>
                   <td className="py-3.5 px-4">
-                    <div className="flex flex-col gap-0.5">
+                    <span
+                      className={`inline-flex items-center gap-1 font-bold ${
+                        offline ? "text-error" : "text-primary-container"
+                      }`}
+                    >
                       <span
-                        className={`inline-flex items-center gap-1 font-bold ${
-                          offline ? "text-error" : "text-primary-container"
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          offline ? "bg-error" : "bg-primary-container animate-ping"
                         }`}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            offline ? "bg-error" : "bg-primary-container animate-ping"
-                          }`}
-                        />
-                        {offline ? "OFFLINE" : "ONLINE"} ({hydrated ? formatTimeAgoPrecise(station.lastSeenAt) : "…"})
-                      </span>
-                      <span className={`text-[11px] ${offline ? "text-error" : "text-on-surface-variant"}`}>
-                        {hw.ingestMethod}
-                      </span>
-                    </div>
+                      />
+                      {offline ? "OFFLINE" : "ONLINE"} ({hydrated ? formatTimeAgoPrecise(station.lastSeenAt) : "…"})
+                    </span>
                   </td>
                   <td className="py-3.5 px-4">
                     <div className="flex flex-wrap items-center gap-1">
@@ -244,17 +239,6 @@ export default function FleetInventoryTable({
             })}
           </tbody>
         </table>
-      </div>
-
-      <div className="p-3 rounded-lg bg-[#080c14] border border-border-line flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 font-mono text-[11px] text-on-surface-variant">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-secondary text-[16px]">admin_panel_settings</span>
-          <span>
-            ACCESS POLICY: {canManage
-              ? "Technical Team has full write access (calibration offsets, hardware pings)."
-              : "Administrators have read-only access to fleet analytics."}
-          </span>
-        </div>
       </div>
     </section>
   );
