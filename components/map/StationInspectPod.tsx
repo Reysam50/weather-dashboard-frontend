@@ -12,9 +12,11 @@ import { scaleSeries, smoothLinePath, areaPath } from "@/lib/chartPaths";
 export default function StationInspectPod({
   station,
   onCalibrate,
+  onEdit,
 }: {
   station: Station;
   onCalibrate: (station: Station) => void;
+  onEdit?: (station: Station) => void;
 }) {
   const [pingState, setPingState] = useState<"idle" | "pinging" | "done">("idle");
   const [pingMs, setPingMs] = useState(0);
@@ -107,7 +109,7 @@ export default function StationInspectPod({
               <span className="text-[10px] text-on-surface-variant block">hPa</span>
             </div>
             <div>
-              <span className="text-[10px] text-on-surface-variant block">RAIN (1HR)</span>
+              <span className="text-[10px] text-on-surface-variant block">RAIN (ROLL)</span>
               <span className="font-mono text-lg font-bold text-primary-container">
                 {data.current.rollAvgRain_mm}
                 <span className="text-xs font-normal">mm</span>
@@ -141,6 +143,16 @@ export default function StationInspectPod({
           <span className="material-symbols-outlined text-[16px]">show_chart</span>
           <span>Jump to Telemetry</span>
         </Link>
+        {onEdit && (
+          <button
+            type="button"
+            onClick={() => onEdit(station)}
+            title="Edit name, device ID & coordinates"
+            className="p-1.5 rounded-lg bg-card-bg-subtle text-on-surface-variant hover:text-white hover:border-slate-500 transition-colors border border-border-line"
+          >
+            <span className="material-symbols-outlined text-[18px]">edit_location_alt</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onCalibrate(station)}

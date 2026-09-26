@@ -12,6 +12,7 @@ export default function FleetInventoryTable({
   calibrationOverrides,
   canManage,
   onCalibrate,
+  onEdit,
   onExportCsv,
   onSyncFleet,
 }: {
@@ -19,6 +20,7 @@ export default function FleetInventoryTable({
   calibrationOverrides: Record<string, CalibrationOffsets>;
   canManage: boolean;
   onCalibrate: (station: Station) => void;
+  onEdit: (station: Station) => void;
   onExportCsv: () => void;
   onSyncFleet: () => void;
 }) {
@@ -223,14 +225,24 @@ export default function FleetInventoryTable({
                         </button>
                       )}
                       {canManage && (
-                        <button
-                          type="button"
-                          onClick={() => onCalibrate(station)}
-                          className="px-2.5 py-1 rounded-md bg-card-bg-subtle hover:bg-slate-700 text-on-surface-variant hover:text-primary-container text-[11px] transition-colors flex items-center gap-1 border border-border-line"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">tune</span>
-                          <span>Calibrate</span>
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => onEdit(station)}
+                            className="px-2.5 py-1 rounded-md bg-card-bg-subtle hover:bg-slate-700 text-on-surface-variant hover:text-white text-[11px] transition-colors flex items-center gap-1 border border-border-line"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">edit_location_alt</span>
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onCalibrate(station)}
+                            className="px-2.5 py-1 rounded-md bg-card-bg-subtle hover:bg-slate-700 text-on-surface-variant hover:text-primary-container text-[11px] transition-colors flex items-center gap-1 border border-border-line"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">tune</span>
+                            <span>Calibrate</span>
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>

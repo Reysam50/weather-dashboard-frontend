@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import StationInspectPod from "@/components/map/StationInspectPod";
 import FleetInventoryTable from "@/components/map/FleetInventoryTable";
 import ProvisionStationModal from "@/components/map/ProvisionStationModal";
+import EditStationModal from "@/components/map/EditStationModal";
 import CalibrationDrawer from "@/components/map/CalibrationDrawer";
 import { useStationContext } from "@/lib/StationContext";
 import { ROLE_LABELS } from "@/lib/mockAuth";
@@ -45,17 +46,15 @@ const StationMap = dynamic(() => import("@/components/map/StationMap"), {
  * TODO (frontend developer) — per api-specification.md §4:
  * - GET /stations belongs in lib/StationContext.tsx (every screen reads
  *   station data from there), replacing its static mockStations import.
- * - No PATCH /stations/{id} call exists yet for editing an existing
- *   station's name/location/device id — not currently exposed in this
- *   UI at all, only add-new.
  * - Calibration offsets and the Ping action have no backing endpoint in
  *   the spec yet — both stay local-only/simulated (see
  *   CalibrationDrawer.tsx and StationInspectPod.tsx's handlePing) until
  *   one exists.
  *
- * handleSaveStation below DOES call the real POST /stations already
- * (falls back to a local-only station if there's no backend to answer
- * it yet, same pattern as the rest of this app).
+ * handleSaveStation and handleSaveEditedStation below DO call the real
+ * POST /stations and PATCH /stations/{id} already (fall back to a
+ * local-only update if there's no backend to answer it yet, same pattern
+ * as the rest of this app).
  */
 export default function StationsPage() {
   const { user } = useAuth();
@@ -77,7 +76,14 @@ export default function StationsPage() {
   }, [settings.mapTheme]);
   const [isProvisioning, setIsProvisioning] = useState(false);
   const [isPlacingStation, setIsPlacingStation] = useState(false);
+  // Which flow a map click/re-pick currently belongs to — Provision (new
+  // station) or Edit (moving an existing one's pin).
+  const [placementTarget, setPlacementTarget] = useState<"create" | "edit">("create");
   const [pendingCoords, setPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [editingStation, setEditingStation] = useState<Station | null>(null);
+  const [editPendingCoords, setEditPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [saveEditError, setSaveEditError] = useState<string | null>(null);
   const [calibratingStation, setCalibratingStation] = useState<Station | null>(null);
   const [calibrationOverrides, setCalibrationOverrides] = useState<
     Record<string, CalibrationOffsets>
@@ -105,13 +111,26 @@ export default function StationsPage() {
       : { lat: -15.7861, lng: 35.0058 };
 
   function handleMapClickForPlacement(lat: number, lng: number) {
-    setPendingCoords({ lat, lng });
     setIsPlacingStation(false);
-    setIsProvisioning(true);
+    if (placementTarget === "edit") {
+      setEditPendingCoords({ lat, lng });
+    } else {
+      setPendingCoords({ lat, lng });
+      setIsProvisioning(true);
+    }
   }
 
   function handleRepickLocation() {
     setIsProvisioning(false);
+    setPlacementTarget("create");
+    setIsPlacingStation(true);
+  }
+
+  function handleRepickLocationForEdit() {
+    // editingStation stays set — it's what makes EditStationModal's JSX
+    // condition true — we just hide the modal itself while isPlacingStation
+    // is true, matching how Provision does it above.
+    setPlacementTarget("edit");
     setIsPlacingStation(true);
   }
 
@@ -181,6 +200,66 @@ export default function StationsPage() {
       setPendingCoords(null);
     } finally {
       setIsSavingStation(false);
+    }
+  }
+
+  async function handleSaveEditedStation(
+    id: string,
+    updates: { name: string; particleDeviceId: string; latitude: number; longitude: number }
+  ) {
+    setIsSavingEdit(true);
+    setSaveEditError(null);
+    try {
+      // PATCH /stations/{id} (Technical Team only, api-specification.md §4)
+      // — accepts any subset of these fields; we always send all four
+      // since the form always has current values for each.
+      const updated = await apiFetch<{
+        id: string;
+        name: string;
+        latitude: number;
+        longitude: number;
+        particle_device_id: string;
+        status: Station["status"];
+        last_seen_at: string | null;
+      }>(`/stations/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: updates.name,
+          latitude: updates.latitude,
+          longitude: updates.longitude,
+          particle_device_id: updates.particleDeviceId,
+        }),
+      });
+      setStations((prev) =>
+        prev.map((s) =>
+          s.id === id
+            ? {
+                ...s,
+                name: updated.name,
+                latitude: updated.latitude,
+                longitude: updated.longitude,
+                particleDeviceId: updated.particle_device_id,
+                status: updated.status,
+                lastSeenAt: updated.last_seen_at,
+              }
+            : s
+        )
+      );
+      setEditingStation(null);
+      setEditPendingCoords(null);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setSaveEditError("That Particle device ID is already paired to another station.");
+        return;
+      }
+      // No backend reachable yet — apply the edit locally so the flow
+      // stays testable end-to-end, same fallback pattern as
+      // handleSaveStation above.
+      setStations((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
+      setEditingStation(null);
+      setEditPendingCoords(null);
+    } finally {
+      setIsSavingEdit(false);
     }
   }
 
@@ -317,13 +396,14 @@ export default function StationsPage() {
             type="button"
             onClick={() => {
               setPendingCoords(null);
+              setPlacementTarget("create");
               setIsPlacingStation(true);
             }}
             disabled={isPlacingStation}
             className="px-4 py-2.5 rounded-xl bg-primary-container hover:bg-primary text-slate-950 font-bold text-sm flex items-center gap-1.5 transition-colors shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-[18px]">add_circle</span>
-            {isPlacingStation ? "Click the map to place it…" : "Provision New AWS Station"}
+            {isPlacingStation && placementTarget === "create" ? "Click the map to place it…" : "Provision New AWS Station"}
           </button>
         )}
       </div>
@@ -341,7 +421,11 @@ export default function StationsPage() {
             <span className="material-symbols-outlined text-[18px] text-primary-container animate-pulse">
               pin_drop
             </span>
-            <span className="text-sm text-white font-medium">Click the map to place the new station</span>
+            <span className="text-sm text-white font-medium">
+              {placementTarget === "edit" && editingStation
+                ? `Click the map to move ${editingStation.name}`
+                : "Click the map to place the new station"}
+            </span>
             <button
               type="button"
               onClick={() => setIsPlacingStation(false)}
@@ -356,7 +440,7 @@ export default function StationsPage() {
           selectedStationId={selectedStationId}
           onSelectStation={setSelectedStationId}
           onMapClick={isPlacingStation ? handleMapClickForPlacement : undefined}
-          pendingMarker={pendingCoords}
+          pendingMarker={placementTarget === "edit" ? editPendingCoords : pendingCoords}
           mapTheme={layer === "dark" ? "dark" : "light"}
           terrainMode={layer === "terrain"}
           showControls
@@ -365,7 +449,18 @@ export default function StationsPage() {
           onRecenterClick={() => setRecenterSignal((n) => n + 1)}
         />
         {selectedStation && !isPlacingStation && (
-          <StationInspectPod station={selectedStation} onCalibrate={setCalibratingStation} />
+          <StationInspectPod
+            station={selectedStation}
+            onCalibrate={setCalibratingStation}
+            onEdit={
+              canManage
+                ? (station) => {
+                    setEditPendingCoords(null);
+                    setEditingStation(station);
+                  }
+                : undefined
+            }
+          />
         )}
       </div>
 
@@ -375,6 +470,10 @@ export default function StationsPage() {
         calibrationOverrides={calibrationOverrides}
         canManage={canManage}
         onCalibrate={setCalibratingStation}
+        onEdit={(station) => {
+          setEditPendingCoords(null);
+          setEditingStation(station);
+        }}
         onExportCsv={handleExportCsv}
         onSyncFleet={handleSyncFleet}
       />
@@ -391,6 +490,22 @@ export default function StationsPage() {
             setIsProvisioning(false);
             setPendingCoords(null);
             setSaveStationError(null);
+          }}
+        />
+      )}
+
+      {editingStation && !isPlacingStation && (
+        <EditStationModal
+          station={editingStation}
+          pendingCoords={editPendingCoords}
+          onRepickLocation={handleRepickLocationForEdit}
+          onSave={handleSaveEditedStation}
+          isSaving={isSavingEdit}
+          error={saveEditError}
+          onClose={() => {
+            setEditingStation(null);
+            setEditPendingCoords(null);
+            setSaveEditError(null);
           }}
         />
       )}

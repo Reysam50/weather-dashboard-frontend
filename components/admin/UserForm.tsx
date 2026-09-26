@@ -23,10 +23,12 @@ const ROLE_OPTIONS: { value: User["role"]; label: string }[] = [
  * Add/edit user modal — matches POST /users and PATCH /users/{id}
  * (api-specification.md §3). Station assignment only appears for Station
  * Operator: per stakeholder-analysis.md, Administrator/Technical Team
- * already see every station. ("Configure Station Scope" on the roster
- * table is a separate, dedicated control now — StationScopeModal.tsx,
- * wired to POST /users/{id}/stations — this form used to be reused for
- * that too, which was the "these two buttons do the same thing" bug.)
+ * already see every station. (The roster table used to also have a
+ * separate "Configure Station Scope" button/modal that duplicated this
+ * form's station-assignment field — StationScopeModal.tsx, wired to
+ * POST /users/{id}/stations. It's been removed; that button now deletes
+ * the user instead (DELETE /users/{id}), and station scope is edited
+ * here, via "Edit Permissions", exclusively.)
  *
  * Data-model gap: GET /users' real response shape (api-specification.md
  * §3) is `{id, email, role, stations, created_at}` — no `name` field.

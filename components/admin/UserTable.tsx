@@ -1,13 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import type { User, Station } from "@/lib/types";
 import { getUserSecurity } from "@/lib/userSecurity";
 
 interface UserTableProps {
   users: User[];
   stations: Station[];
+  sessionOverrides: Record<string, boolean>;
   onEdit: (user: User) => void;
-  onConfigureScope: (user: User) => void;
+  onDeleteUser: (user: User) => void;
   onToggleSession: (id: string) => void;
 }
 
@@ -53,13 +55,29 @@ function initials(name: string) {
 export default function UserTable({
   users,
   stations,
+  sessionOverrides,
   onEdit,
-  onConfigureScope,
+  onDeleteUser,
   onToggleSession,
 }: UserTableProps) {
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+
   function stationNames(ids: string[]) {
     if (ids.length === 0) return "—";
     return ids.map((id) => stations.find((s) => s.id === id)?.name ?? "Unknown").join(", ");
+  }
+
+  function handleDeleteClick(user: User) {
+    if (confirmingDeleteId === user.id) {
+      setConfirmingDeleteId(null);
+      onDeleteUser(user);
+    } else {
+      setConfirmingDeleteId(user.id);
+      // Give the confirm state an expiry so an accidental second click
+      // days later doesn't delete someone — matches the pattern already
+      // used for the transient ping-result state elsewhere in this app.
+      setTimeout(() => setConfirmingDeleteId((current) => (current === user.id ? null : current)), 4000);
+    }
   }
 
   return (
@@ -87,6 +105,8 @@ export default function UserTable({
             ) : (
               users.map((user, i) => {
                 const sec = getUserSecurity(user.id);
+                const sessionActive = sessionOverrides[user.id] ?? sec.sessionActive;
+                const confirmingDelete = confirmingDeleteId === user.id;
                 return (
                   <tr
                     key={user.id}
@@ -150,7 +170,7 @@ export default function UserTable({
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="flex flex-col">
-                        <span className={sec.sessionActive ? "text-primary-container font-semibold" : "text-slate-400"}>
+                        <span className={sessionActive ? "text-primary-container font-semibold" : "text-slate-400"}>
                           {sec.lastActivityLabel}
                         </span>
                         <span className="text-[10px] text-on-surface-variant">IP: {sec.lastActivityIp}</span>
@@ -168,20 +188,26 @@ export default function UserTable({
                         </button>
                         <button
                           type="button"
-                          onClick={() => onConfigureScope(user)}
-                          title="Configure Station Scope"
-                          className="p-1.5 rounded bg-card-bg-subtle hover:bg-slate-700 text-on-surface-variant hover:text-secondary transition-colors"
+                          onClick={() => handleDeleteClick(user)}
+                          title={confirmingDelete ? "Click again to confirm delete" : "Delete User"}
+                          className={`p-1.5 rounded transition-colors ${
+                            confirmingDelete
+                              ? "bg-error/20 text-error"
+                              : "bg-card-bg-subtle hover:bg-slate-700 text-on-surface-variant hover:text-error"
+                          }`}
                         >
-                          <span className="material-symbols-outlined text-[16px]">tune</span>
+                          <span className="material-symbols-outlined text-[16px]">
+                            {confirmingDelete ? "warning" : "person_remove"}
+                          </span>
                         </button>
                         <button
                           type="button"
                           onClick={() => onToggleSession(user.id)}
-                          title={sec.sessionActive ? "Revoke Session" : "No active session"}
+                          title={sessionActive ? "Revoke Session" : "No active session"}
                           className="p-1.5 rounded bg-card-bg-subtle hover:bg-slate-700 text-on-surface-variant hover:text-error transition-colors"
                         >
                           <span className="material-symbols-outlined text-[16px]">
-                            {sec.sessionActive ? "person_off" : "person_check"}
+                            {sessionActive ? "person_off" : "person_check"}
                           </span>
                         </button>
                       </div>

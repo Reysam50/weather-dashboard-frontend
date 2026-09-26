@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import UserTable from "@/components/admin/UserTable";
 import UserForm from "@/components/admin/UserForm";
-import StationScopeModal from "@/components/admin/StationScopeModal";
 import SettingsPanel from "@/components/admin/SettingsPanel";
 import AuditLogTable from "@/components/admin/AuditLogTable";
 import { mockStations } from "@/lib/mockStations";
@@ -34,12 +33,21 @@ import { apiFetch, ApiError } from "@/lib/api";
  * (lib/adminSettings.ts, read by the Station Map screen and the header's
  * SSE badge) via a draft/publish model matching the redesign's "pending
  * changes" framing — nothing saves to lib/adminSettings.ts until you hit
- * Publish & Deploy.
+ * Publish & Deploy. The Ingest & Polling Frequency and Data Transmission
+ * Resilience cards that used to live in that tab were removed (no longer
+ * exposed as admin-editable settings) — see components/admin/SettingsPanel.tsx.
+ *
+ * handleSaveUser, handleDeleteUser and handleToggleSession below call the
+ * real POST/PATCH/DELETE /users/{id} endpoints already (api-specification.md
+ * §3), falling back to a local-only update if there's no backend to answer
+ * it yet, same pattern as the rest of this app. Station scope is edited
+ * exclusively through "Edit Permissions" (UserForm, PATCH /users/{id}) —
+ * the roster's separate "Configure Station Scope" action/modal was removed
+ * in favor of a Delete User action instead, since the two duplicated the
+ * same capability.
  *
  * TODO (frontend developer):
  * - replace mockUsers with a real GET /users fetch
- * - wire UserForm's onSave to POST /users (new) or PATCH /users/{id} +
- *   POST /users/{id}/stations (edit)
  * - replace lib/adminSettings.ts's localStorage with a real /settings
  *   endpoint, and the audit log with a real backend log
  */
@@ -83,8 +91,6 @@ export default function AdminPage() {
 
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [saveUserError, setSaveUserError] = useState<string | null>(null);
-  const [isSavingScope, setIsSavingScope] = useState(false);
-  const [saveScopeError, setSaveScopeError] = useState<string | null>(null);
 
   async function handleSaveUser(input: Omit<User, "id"> & { id?: string; tempPassword?: string }) {
     setIsSavingUser(true);
@@ -144,32 +150,23 @@ export default function AdminPage() {
     }
   }
 
-  async function handleSaveStationScope(userId: string, stationIds: string[]) {
-    setIsSavingScope(true);
-    setSaveScopeError(null);
-    const user = users.find((u) => u.id === userId);
+  async function handleDeleteUser(user: User) {
     try {
-      // POST /users/{id}/stations — replaces (not appends to) the
-      // assignment list, per api-specification.md §3.
-      await apiFetch(`/users/${userId}/stations`, {
-        method: "POST",
-        body: JSON.stringify({ stations: stationIds }),
-      });
-      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, stationIds } : u)));
-      logAction("STATION_SCOPE_UPDATED", user?.email ?? userId);
-      setScopeUser(null);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setSaveScopeError("Something went wrong saving station scope. Please try again.");
-        return;
-      }
-      // No backend reachable yet — same local fallback pattern as above.
-      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, stationIds } : u)));
-      logAction("STATION_SCOPE_UPDATED", user?.email ?? userId);
-      setScopeUser(null);
-    } finally {
-      setIsSavingScope(false);
+      // DELETE /users/{id} — per api-specification.md §3 this is a
+      // soft-delete (deactivates the account rather than purging it), so
+      // it's safe to call even though it reads destructively here.
+      await apiFetch(`/users/${user.id}`, { method: "DELETE" });
+    } catch {
+      // No backend reachable yet — same local fallback pattern as
+      // everywhere else in this app; still remove it from the roster so
+      // the flow is testable end-to-end.
     }
+    setUsers((prev) => prev.filter((u) => u.id !== user.id));
+    setSessionOverrides((prev) => {
+      const { [user.id]: _removed, ...rest } = prev;
+      return rest;
+    });
+    logAction("USER_DELETED", user.email, "blocked");
   }
 
   function handleToggleSession(id: string) {
@@ -201,7 +198,6 @@ export default function AdminPage() {
   }
 
   const showForm = isAddingUser || editingUser !== null;
-  const [scopeUser, setScopeUser] = useState<User | null>(null);
 
   const filteredUsers = users.filter((u) => {
     if (roleFilter !== "all" && u.role !== roleFilter) return false;
@@ -378,11 +374,12 @@ export default function AdminPage() {
           <UserTable
             users={filteredUsers}
             stations={mockStations}
+            sessionOverrides={sessionOverrides}
             onEdit={(user) => {
               setEditingUser(user);
               setIsAddingUser(false);
             }}
-            onConfigureScope={(user) => setScopeUser(user)}
+            onDeleteUser={handleDeleteUser}
             onToggleSession={handleToggleSession}
           />
         </div>
@@ -403,20 +400,6 @@ export default function AdminPage() {
             setEditingUser(null);
             setIsAddingUser(false);
             setSaveUserError(null);
-          }}
-        />
-      )}
-
-      {scopeUser && (
-        <StationScopeModal
-          user={scopeUser}
-          stations={mockStations}
-          onSave={handleSaveStationScope}
-          isSaving={isSavingScope}
-          error={saveScopeError}
-          onClose={() => {
-            setScopeUser(null);
-            setSaveScopeError(null);
           }}
         />
       )}
