@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
-import type { Station } from "./types";
-import { mockStations } from "./mockStations";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { FetchStatus, Station } from "./types";
+import { apiFetch, ApiError } from "./api";
+import { mapStation } from "./apiMappers";
 import { useAuth } from "./AuthContext";
 
 /**
@@ -18,15 +19,18 @@ import { useAuth } from "./AuthContext";
  * doesn't allow picking, same restriction the old dashboard-local state used
  * to enforce.
  *
- * TODO (frontend developer): `stations` still comes from the static
- * lib/mockStations.ts import below — replace with a GET /stations fetch
- * (api-specification.md §4) in an effect here once a backend exists. An
- * Operator's request is scoped server-side to their assigned station(s)
- * automatically, so no client-side filtering is needed on top of that.
+ * `stations` is fetched from GET /stations (api-specification.md §4) here,
+ * once, for the whole app — every screen that needs the station list reads
+ * it from this context rather than fetching its own copy. An Operator's
+ * request is scoped server-side to their assigned station(s) automatically,
+ * so no client-side filtering happens on top of that.
  */
 interface StationContextValue {
   stations: Station[];
   setStations: React.Dispatch<React.SetStateAction<Station[]>>;
+  status: FetchStatus;
+  error: string | null;
+  refetch: () => void;
   selectedStationId: string;
   setSelectedStationId: (id: string) => void;
   selectedStation: Station | undefined;
@@ -38,13 +42,38 @@ const StationContext = createContext<StationContextValue | null>(null);
 export function StationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const canSelectStation = user.role !== "station_operator";
-  const assignedStationId =
-    user.stations !== "all" && user.stations.length > 0 ? user.stations[0] : mockStations[0]?.id ?? "1";
+  const assignedStationId = user.stations !== "all" && user.stations.length > 0 ? user.stations[0] : "";
 
-  const [stations, setStations] = useState<Station[]>(mockStations);
-  const [selectedStationId, setSelectedStationIdState] = useState<string>(
-    canSelectStation ? mockStations[0]?.id ?? "1" : assignedStationId
-  );
+  const [stations, setStations] = useState<Station[]>([]);
+  const [status, setStatus] = useState<FetchStatus>("loading");
+  const [error, setError] = useState<string | null>(null);
+  const [selectedStationId, setSelectedStationIdState] = useState<string>(assignedStationId);
+  const [refetchToken, setRefetchToken] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatus("loading");
+    setError(null);
+    apiFetch<Parameters<typeof mapStation>[0][]>("/stations")
+      .then((raw) => {
+        if (cancelled) return;
+        const mapped = raw.map(mapStation);
+        setStations(mapped);
+        setStatus(mapped.length === 0 ? "offline" : "ready");
+        // Only auto-pick the first station for roles that can pick at all —
+        // an Operator's selection is fixed to their assignment above.
+        setSelectedStationIdState((current) => current || (canSelectStation ? mapped[0]?.id ?? "" : assignedStationId));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof ApiError ? err.message : "Could not reach the station API.");
+        setStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refetchToken]);
 
   function setSelectedStationId(id: string) {
     if (!canSelectStation) return;
@@ -57,12 +86,15 @@ export function StationProvider({ children }: { children: React.ReactNode }) {
     () => ({
       stations,
       setStations,
+      status,
+      error,
+      refetch: () => setRefetchToken((n) => n + 1),
       selectedStationId,
       setSelectedStationId,
       selectedStation,
       canSelectStation,
     }),
-    [stations, selectedStationId, selectedStation, canSelectStation]
+    [stations, status, error, selectedStationId, selectedStation, canSelectStation]
   );
 
   return <StationContext.Provider value={value}>{children}</StationContext.Provider>;

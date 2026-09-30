@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { LiveTelemetryExtras } from "@/lib/liveTelemetryData";
 import { useHydrated } from "@/lib/useHydrated";
+import { OfflineCardBody } from "@/components/layout/OfflineCardBody";
 
 const PAGE_SIZE = 5;
 
@@ -35,7 +36,7 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
       "Minute Rain (mm/min)",
       "Wind Speed (km/h)",
       "Wind Dir (deg)",
-      "QA Score",
+      "QA Status",
     ];
     const rows = extras.ingestLog.map((row) => [
       row.time,
@@ -47,7 +48,7 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
       row.minuteRain_mm,
       row.windSpeedKmh,
       row.windDirectionDeg,
-      row.qaScore,
+      row.qaOk ? "OK" : "GAP",
     ]);
     const csv = [header, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -135,6 +136,13 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
         </div>
       </div>
 
+      {extras.ingestLog.length === 0 ? (
+        <OfflineCardBody
+          label="No Telemetry Ingested"
+          detail="No minute-level readings available yet for this station."
+        />
+      ) : (
+      <>
       <div className="w-full overflow-x-auto rounded-xl border border-border-line bg-[#080c14]">
         <table className="w-full text-left font-mono text-xs">
           <thead className="bg-[#0e1320] border-b border-border-line text-slate-400 uppercase tracking-wider text-[11px]">
@@ -167,17 +175,23 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
                       </span>
                     )}
                   </td>
-                  <td className="py-4 px-5 text-right text-secondary font-semibold">{row.airTemp.toFixed(2)}</td>
-                  <td className="py-4 px-5 text-right text-slate-300">{row.bmpTemp.toFixed(2)}</td>
-                  <td className="py-4 px-5 text-right text-slate-300">{row.shtTemp.toFixed(2)}</td>
-                  <td className="py-4 px-5 text-right text-cyan-300">{row.humidity.toFixed(1)}</td>
-                  <td className="py-4 px-5 text-right">{row.pressure.toFixed(2)}</td>
-                  <td className="py-4 px-5 text-right text-white">{row.minuteRain_mm.toFixed(2)}</td>
-                  <td className="py-4 px-5 text-right text-emerald-300">{row.windSpeedKmh.toFixed(1)}</td>
-                  <td className="py-4 px-5 text-right text-slate-300">{row.windDirectionDeg}°</td>
+                  <td className="py-4 px-5 text-right text-secondary font-semibold">{row.airTemp?.toFixed(2) ?? "—"}</td>
+                  <td className="py-4 px-5 text-right text-slate-300">{row.bmpTemp?.toFixed(2) ?? "—"}</td>
+                  <td className="py-4 px-5 text-right text-slate-300">{row.shtTemp?.toFixed(2) ?? "—"}</td>
+                  <td className="py-4 px-5 text-right text-cyan-300">{row.humidity?.toFixed(1) ?? "—"}</td>
+                  <td className="py-4 px-5 text-right">{row.pressure?.toFixed(2) ?? "—"}</td>
+                  <td className="py-4 px-5 text-right text-white">{row.minuteRain_mm?.toFixed(2) ?? "—"}</td>
+                  <td className="py-4 px-5 text-right text-emerald-300">{row.windSpeedKmh?.toFixed(1) ?? "—"}</td>
+                  <td className="py-4 px-5 text-right text-slate-300">{row.windDirectionDeg !== null ? `${row.windDirectionDeg}°` : "—"}</td>
                   <td className="py-4 px-5 text-center">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-[10px]">
-                      PASS • {row.qaScore.toFixed(2)}
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
+                        row.qaOk
+                          ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+                          : "bg-rose-500/10 border border-rose-500/20 text-rose-400"
+                      }`}
+                    >
+                      {row.qaOk ? "OK" : "GAP"}
                     </span>
                   </td>
                 </tr>
@@ -246,6 +260,8 @@ export default function TelemetryLogTable({ extras }: { extras: LiveTelemetryExt
           </button>
         </div>
       </div>
+      </>
+      )}
     </section>
   );
 }

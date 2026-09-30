@@ -1,8 +1,24 @@
-import type { Station } from "./types";
-import { MOCK_STATION_DATA } from "./mockStationData";
-import { getLiveTelemetryExtras } from "./liveTelemetryData";
+import type { Station, StationReading } from "./types";
 import { getStationHardware } from "./stationHardware";
 import { computeMetricStats, type MetricStats } from "./comparisonMetrics";
+
+/** stationId -> readings, oldest first (see lib/useCompareData.ts) */
+export type ReadingsByStation = Record<string, StationReading[]>;
+
+type NumericField = {
+  [K in keyof StationReading]: StationReading[K] extends number | null ? K : never;
+}[keyof StationReading];
+
+/** Non-null values of one field across a station's readings — gaps are
+ * dropped, never plotted as zero. */
+export function fieldSeries(readings: StationReading[] | undefined, field: NumericField): number[] {
+  return (readings ?? []).map((r) => r[field]).filter((v): v is number => v !== null);
+}
+
+function lastValue(readings: StationReading[] | undefined, field: NumericField): number | null {
+  const values = fieldSeries(readings, field);
+  return values.length ? values[values.length - 1] : null;
+}
 
 /** Cyan for the first online station, then amber/purple/green for
  * additional ones — same convention as the station map's markers. */
@@ -30,21 +46,24 @@ export interface Finding {
   text: string;
 }
 
-export function buildFindings(stations: Station[]): Finding[] {
+export function buildFindings(stations: Station[], hourly: ReadingsByStation): Finding[] {
   const findings: Finding[] = [];
   const online = stations.filter((s) => s.status === "online");
   const offline = stations.filter((s) => s.status === "offline");
 
   if (online.length >= 2) {
     const withElev = online
-      .map((s) => ({ s, elev: getStationHardware(s.id).elevationM, temp: MOCK_STATION_DATA[s.id]?.current.airTemp ?? 0 }))
+      .map((s) => ({ s, elev: getStationHardware(s.id).elevationM, temp: lastValue(hourly[s.id], "airTemp") }))
+      .filter((x): x is { s: Station; elev: number; temp: number } => x.temp !== null)
       .sort((a, b) => a.elev - b.elev);
     const lowest = withElev[0];
     const highest = withElev[withElev.length - 1];
-    const delta = Number((highest.temp - lowest.temp).toFixed(1));
-    const elevDelta = highest.elev - lowest.elev;
+    const delta = lowest && highest ? Number((highest.temp - lowest.temp).toFixed(1)) : 0;
+    const elevDelta = lowest && highest ? highest.elev - lowest.elev : 0;
 
-    if (delta > 0) {
+    if (withElev.length < 2) {
+      // not enough stations currently reporting a temperature to compare
+    } else if (delta > 0) {
       findings.push({
         icon: "thermostat",
         color: "text-secondary",
@@ -62,11 +81,11 @@ export function buildFindings(stations: Station[]): Finding[] {
   }
 
   if (online.length >= 1) {
-    const primary = MOCK_STATION_DATA[online[0].id];
-    if (primary) {
-      const first = primary.fullDayPressureTrend[0]?.y ?? primary.current.pressure;
-      const last = primary.fullDayPressureTrend[primary.fullDayPressureTrend.length - 1]?.y ?? primary.current.pressure;
-      const hours = primary.fullDayPressureTrend.length;
+    const pressures = fieldSeries(hourly[online[0].id], "pressure");
+    if (pressures.length >= 2) {
+      const first = pressures[0];
+      const last = pressures[pressures.length - 1];
+      const hours = pressures.length;
       const trend = Number((last - first).toFixed(1));
       findings.push({
         icon: "air",
@@ -91,8 +110,8 @@ export function buildFindings(stations: Station[]): Finding[] {
       label: `${s.name} Telemetry Gap`,
       text:
         hoursOffline !== null
-          ? `Offline ${hoursOffline}h. Dual-pipe synthetic fallback active`
-          : "Offline. Dual-pipe synthetic fallback active",
+          ? `Offline ${hoursOffline}h — no telemetry being received`
+          : "Offline — no telemetry being received",
     });
   } else if (online.length > 0) {
     findings.push({
@@ -112,10 +131,10 @@ export interface MatrixRow {
   icon: string;
   unit: string;
   perOnlineStation: Record<string, MetricStats>;
-  perOfflineStation: Record<string, number>;
+  perOfflineStation: Record<string, number | null>;
 }
 
-export function buildMatrixRows(stations: Station[]): MatrixRow[] {
+export function buildMatrixRows(stations: Station[], hourly: ReadingsByStation): MatrixRow[] {
   const online = stations.filter((s) => s.status === "online");
   const offline = stations.filter((s) => s.status === "offline");
 
@@ -125,7 +144,7 @@ export function buildMatrixRows(stations: Station[]): MatrixRow[] {
     icon: string,
     unit: string,
     getSeries: (id: string) => number[],
-    getOfflineEstimate: (id: string) => number
+    getOfflineEstimate: (id: string) => number | null
   ): MatrixRow {
     const perOnlineStation: MatrixRow["perOnlineStation"] = {};
     online.forEach((s) => {
@@ -139,89 +158,49 @@ export function buildMatrixRows(stations: Station[]): MatrixRow[] {
     return { key, label, icon, unit, perOnlineStation, perOfflineStation };
   }
 
+  const row = (
+    key: string,
+    label: string,
+    icon: string,
+    unit: string,
+    field: NumericField
+  ) =>
+    buildRow(
+      key,
+      label,
+      icon,
+      unit,
+      (id) => fieldSeries(hourly[id], field),
+      (id) => lastValue(hourly[id], field)
+    );
+
   return [
-    buildRow(
-      "temp",
-      "Air Temperature",
-      "device_thermostat",
-      "°C",
-      (id) => MOCK_STATION_DATA[id]?.fullDayTrend.map((p) => p.y) ?? [],
-      (id) => MOCK_STATION_DATA[id]?.current.airTemp ?? 0
-    ),
-    buildRow(
-      "humidity",
-      "Relative Humidity",
-      "humidity_percentage",
-      "%",
-      (id) => MOCK_STATION_DATA[id]?.fullDayHumidityTrend.map((p) => p.y) ?? [],
-      (id) => MOCK_STATION_DATA[id]?.current.humidity ?? 0
-    ),
-    buildRow(
-      "pressure",
-      "Barometric Pressure",
-      "speed",
-      "hPa",
-      (id) => MOCK_STATION_DATA[id]?.fullDayPressureTrend.map((p) => p.y) ?? [],
-      (id) => MOCK_STATION_DATA[id]?.current.pressure ?? 0
-    ),
-    buildRow(
-      "rain",
-      "Rain Rate",
-      "rainy",
-      "mm/h",
-      (id) => MOCK_STATION_DATA[id]?.rainAverage ?? [],
-      () => 0
-    ),
-    buildRow(
-      "windSpeed",
-      "Wind Speed",
-      "air",
-      "km/h",
-      (id) => getLiveTelemetryExtras(id).windSpeedHistory,
-      (id) => getLiveTelemetryExtras(id).wind.speedKmh
-    ),
+    row("temp", "Air Temperature", "device_thermostat", "°C", "airTemp"),
+    row("humidity", "Relative Humidity", "humidity_percentage", "%", "humidity"),
+    row("pressure", "Barometric Pressure", "speed", "hPa", "pressure"),
+    row("rain", "Rain Rate", "rainy", "mm/min", "minAvgRain_mm"),
+    row("windSpeed", "Wind Speed", "air", "km/h", "windSpeedKmh"),
     // Circular data — high/low/avg here is a simple arithmetic mean of
     // degrees, which is only meaningful when a station's heading doesn't
     // wrap past 0/360 within the window. A real backend should compute
     // this from the average of the wind's u/v vector components instead.
-    buildRow(
-      "windDirection",
-      "Wind Direction",
-      "explore",
-      "°",
-      (id) => getLiveTelemetryExtras(id).windDirectionHistory,
-      (id) => getLiveTelemetryExtras(id).wind.directionDeg
-    ),
+    row("windDirection", "Wind Direction", "explore", "°", "windDirectionDeg"),
   ];
 }
 
-/** Synthetic daily High/Low/Avg series for the Past 7/30 Days tabs — the
- * mock hourly data only represents "today", so this generates a plausible
- * multi-day picture (deterministic per station via its id's char-code
- * hash) rather than repeating the same day N times. */
-export function buildDailyAggregate(stationId: string, days: number) {
-  const base = MOCK_STATION_DATA[stationId];
-  if (!base) return { labels: [] as string[], avg: [] as number[], high: [] as number[], low: [] as number[] };
-
-  const seed = stationId.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  const today = new Date();
-  const labels: string[] = [];
-  const avg: number[] = [];
-  const high: number[] = [];
-  const low: number[] = [];
-
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    labels.push(d.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
-    const wobble = Math.sin(seed + i * 0.7) * 1.8;
-    const dayAvg = Number((base.current.airTemp + wobble - i * 0.02).toFixed(1));
-    avg.push(dayAvg);
-    high.push(Number((dayAvg + 2.2 + Math.abs(Math.sin(seed - i)) * 1.5).toFixed(1)));
-    low.push(Number((dayAvg - 3.1 - Math.abs(Math.cos(seed + i)) * 1.2).toFixed(1)));
-  }
-
-  return { labels, avg, high, low };
+/** Daily High/Low/Avg series for the Past 7/30 Days tabs, from real
+ * resolution=day readings (`maxTemp24h`/`minTemp24h` are the station's own
+ * daily extremes; `airTemp` at day resolution is that day's average). */
+export function buildDailyAggregate(dailyReadings: StationReading[] | undefined) {
+  const rows = dailyReadings ?? [];
+  return {
+    labels: rows.map((r) =>
+      new Date(r.timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    ),
+    avg: rows.map((r) => r.airTemp).filter((v): v is number => v !== null),
+    high: rows.map((r) => r.maxTemp24h).filter((v): v is number => v !== null),
+    low: rows.map((r) => r.minTemp24h).filter((v): v is number => v !== null),
+  };
 }
 
 export function formatOfflineDuration(lastSeenAt: string | null) {

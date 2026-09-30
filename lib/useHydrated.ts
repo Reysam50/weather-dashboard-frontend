@@ -6,11 +6,11 @@ import { useEffect, useState } from "react";
  * Returns false on the server and on the client's first render (so they
  * match), then true after mounting. Use this to gate anything derived
  * from Date.now() / "current time" before it's safe to show — same
- * reasoning as LiveClock.tsx and SseLatencyBadge.tsx, extracted into one
+ * reasoning as LiveClock.tsx, extracted into one
  * hook so every "time ago" display (station last-seen, sync status, etc.)
  * uses the same fix instead of each screen rediscovering the bug.
  *
- * Root cause this works around: lib/mockStations.ts's lastSeenAt values
+ * Root cause this works around: a station's lastSeenAt value
  * are computed with `Date.now() - N` at module-evaluation time. The
  * server evaluates that module while rendering the page; the browser
  * evaluates it again from scratch during hydration, moments later — so

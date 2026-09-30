@@ -5,13 +5,13 @@ import UserTable from "@/components/admin/UserTable";
 import UserForm from "@/components/admin/UserForm";
 import SettingsPanel from "@/components/admin/SettingsPanel";
 import AuditLogTable from "@/components/admin/AuditLogTable";
-import { mockStations } from "@/lib/mockStations";
-import { mockUsers } from "@/lib/mockUsers";
-import { getUserSecurity } from "@/lib/userSecurity";
+import { useStationContext } from "@/lib/StationContext";
+import { mapUser } from "@/lib/apiMappers";
+import AdminLoading from "./loading";
 import type { User } from "@/lib/types";
 import { type AdminSettings } from "@/lib/adminSettings";
 import { useAdminSettings } from "@/lib/AdminSettingsContext";
-import { SEED_AUDIT_LOG, newAuditEntry, type AuditEntry } from "@/lib/auditLog";
+import { newAuditEntry, type AuditEntry } from "@/lib/auditLog";
 import { ROLE_LABELS } from "@/lib/mockAuth";
 import { useAuth } from "@/lib/AuthContext";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -37,19 +37,16 @@ import { apiFetch, ApiError } from "@/lib/api";
  * Resilience cards that used to live in that tab were removed (no longer
  * exposed as admin-editable settings) — see components/admin/SettingsPanel.tsx.
  *
- * handleSaveUser, handleDeleteUser and handleToggleSession below call the
- * real POST/PATCH/DELETE /users/{id} endpoints already (api-specification.md
- * §3), falling back to a local-only update if there's no backend to answer
- * it yet, same pattern as the rest of this app. Station scope is edited
- * exclusively through "Edit Permissions" (UserForm, PATCH /users/{id}) —
- * the roster's separate "Configure Station Scope" action/modal was removed
- * in favor of a Delete User action instead, since the two duplicated the
- * same capability.
+ * The roster comes from GET /users; handleSaveUser and handleDeleteUser
+ * call POST/PATCH/DELETE /users/{id} (api-specification.md §3) and only
+ * update the list once the server confirms — a failed call shows an error
+ * and changes nothing. Station scope is edited exclusively through "Edit
+ * Permissions" (UserForm, PATCH /users/{id}).
  *
- * TODO (frontend developer):
- * - replace mockUsers with a real GET /users fetch
- * - replace lib/adminSettings.ts's localStorage with a real /settings
- *   endpoint, and the audit log with a real backend log
+ * Not backed by any endpoint yet, so not shown: per-user 2FA status, last
+ * activity/IP, and session revoke. The audit log below only lists actions
+ * taken during this visit (no audit endpoint yet), and lib/adminSettings.ts
+ * persists to localStorage (no /settings endpoint yet).
  */
 
 type Tab = "rbac" | "system" | "audit";
@@ -58,16 +55,38 @@ export default function AdminPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("rbac");
 
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const { stations } = useStationContext();
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersStatus, setUsersStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [usersRefetch, setUsersRefetch] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setUsersStatus("loading");
+    apiFetch<Parameters<typeof mapUser>[0][]>("/users")
+      .then((raw) => {
+        if (cancelled) return;
+        setUsers(raw.map(mapUser));
+        setUsersStatus("ready");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setUsersError(err instanceof ApiError ? err.message : "Could not reach the users API.");
+        setUsersStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [usersRefetch]);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isAddingUser, setIsAddingUser] = useState(false);
-  const [sessionOverrides, setSessionOverrides] = useState<Record<string, boolean>>({});
 
   const [roleFilter, setRoleFilter] = useState<"all" | User["role"]>("all");
   const [stationFilter, setStationFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [entries, setEntries] = useState<AuditEntry[]>(SEED_AUDIT_LOG);
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
 
   // "Saved" settings now live in the shared AdminSettingsContext (so
   // Publish below propagates to the header + Station Map immediately,
@@ -133,51 +152,30 @@ export default function AdminPage() {
         setSaveUserError("Station Operators need at least one assigned station.");
         return;
       }
-      // No backend reachable yet — keep the flow usable locally, same
-      // pattern as everywhere else in this app.
-      if (userFields.id) {
-        const id = userFields.id;
-        setUsers((prev) => prev.map((u) => (u.id === id ? { ...userFields, id } : u)));
-        logAction("USER_PERMISSIONS_UPDATED", userFields.email);
-      } else {
-        setUsers((prev) => [...prev, { ...userFields, id: crypto.randomUUID() }]);
-        logAction("USER_PROVISIONED", userFields.email);
-      }
-      setEditingUser(null);
-      setIsAddingUser(false);
+      setSaveUserError(
+        err instanceof ApiError && err.status === 409
+          ? "A user with that email already exists."
+          : err instanceof ApiError
+          ? err.message
+          : "Couldn't reach the server to save this user. Please try again."
+      );
     } finally {
       setIsSavingUser(false);
     }
   }
 
-  async function handleDeleteUser(user: User) {
-    try {
-      // DELETE /users/{id} — per api-specification.md §3 this is a
-      // soft-delete (deactivates the account rather than purging it), so
-      // it's safe to call even though it reads destructively here.
-      await apiFetch(`/users/${user.id}`, { method: "DELETE" });
-    } catch {
-      // No backend reachable yet — same local fallback pattern as
-      // everywhere else in this app; still remove it from the roster so
-      // the flow is testable end-to-end.
-    }
-    setUsers((prev) => prev.filter((u) => u.id !== user.id));
-    setSessionOverrides((prev) => {
-      const { [user.id]: _removed, ...rest } = prev;
-      return rest;
-    });
-    logAction("USER_DELETED", user.email, "blocked");
-  }
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  function handleToggleSession(id: string) {
-    const current = sessionOverrides[id] ?? getUserSecurity(id).sessionActive;
-    setSessionOverrides((prev) => ({ ...prev, [id]: !current }));
-    const user = users.find((u) => u.id === id);
-    logAction(
-      current ? "SESSION_REVOKED" : "SESSION_REINSTATED",
-      user?.email ?? id,
-      current ? "blocked" : "success"
-    );
+  async function handleDeleteUser(user: User) {
+    setDeleteError(null);
+    try {
+      // DELETE /users/{id} — soft-delete per api-specification.md §3.
+      await apiFetch(`/users/${user.id}`, { method: "DELETE" });
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+      logAction("USER_DELETED", user.email, "blocked");
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "Couldn't delete that user. Please try again.");
+    }
   }
 
   function handleSettingsChange(patch: Partial<AdminSettings>) {
@@ -209,23 +207,13 @@ export default function AdminPage() {
     return true;
   });
 
-  const twoFactorCompliance = users.length
-    ? Math.round(
-        (users.filter((u) => getUserSecurity(u.id).twoFactorEnforced).length / users.length) * 100
-      )
-    : 0;
-  const activeSessions = users.filter(
-    (u) => sessionOverrides[u.id] ?? getUserSecurity(u.id).sessionActive
-  ).length;
-
   function handleExportRoster() {
-    const header = ["Name", "Email", "Role", "Stations", "2FA Enforced", "Last Activity"];
+    const header = ["Name", "Email", "Role", "Stations"];
     const rows = users.map((u) => {
-      const sec = getUserSecurity(u.id);
       const stationNames = u.stationIds
-        .map((id) => mockStations.find((s) => s.id === id)?.name ?? id)
+        .map((id) => stations.find((s) => s.id === id)?.name ?? id)
         .join("; ");
-      return [u.name, u.email, u.role, stationNames || "All", sec.twoFactorEnforced ? "Yes" : "No", sec.lastActivityLabel];
+      return [u.name, u.email, u.role, stationNames || "All"];
     });
     const csv = [header, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -296,7 +284,22 @@ export default function AdminPage() {
       </div>
 
       {/* TAB: RBAC */}
-      {activeTab === "rbac" && (
+      {activeTab === "rbac" && usersStatus === "loading" && <AdminLoading />}
+      {activeTab === "rbac" && usersStatus === "error" && (
+        <div className="flex flex-col items-center gap-3 py-16 text-center">
+          <span className="material-symbols-outlined text-[32px] text-rose-400">cloud_off</span>
+          <p className="text-white font-semibold">Couldn&apos;t load the user roster</p>
+          <p className="text-sm text-slate-400">{usersError}</p>
+          <button
+            type="button"
+            onClick={() => setUsersRefetch((n) => n + 1)}
+            className="px-4 py-2 rounded-lg bg-primary-container text-slate-950 font-bold text-sm hover:bg-primary transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {activeTab === "rbac" && usersStatus === "ready" && (
         <div className="flex flex-col gap-4">
           <div className="bg-card-bg p-3 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 border border-border-line">
             <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0">
@@ -333,7 +336,7 @@ export default function AdminPage() {
                   className="bg-transparent text-white font-mono text-xs focus:outline-none cursor-pointer"
                 >
                   <option value="all">All Nodes</option>
-                  {mockStations.map((s) => (
+                  {stations.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
                     </option>
@@ -364,23 +367,25 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono">
+          <div className="grid grid-cols-2 gap-3 font-mono">
             <MetricChip label="TOTAL OPERATORS" value={String(users.length).padStart(2, "0")} unit="Registered" icon="groups" color="text-primary-container" />
-            <MetricChip label="2FA COMPLIANCE" value={`${twoFactorCompliance}%`} unit="Enforced" icon="verified" color="text-secondary" />
-            <MetricChip label="STATION PERMISSIONS" value={String(mockStations.length).padStart(2, "0")} unit="Active AWS Hubs" icon="cell_tower" color="text-tertiary" />
-            <MetricChip label="ACTIVE SESSIONS" value={String(activeSessions).padStart(2, "0")} unit="Concurrent" icon="key" color="text-primary" />
+            <MetricChip label="STATION PERMISSIONS" value={String(stations.length).padStart(2, "0")} unit="Active AWS Hubs" icon="cell_tower" color="text-tertiary" />
           </div>
+
+          {deleteError && (
+            <div className="px-4 py-2.5 rounded-xl bg-error/10 border border-error/25 text-error text-xs font-mono">
+              {deleteError}
+            </div>
+          )}
 
           <UserTable
             users={filteredUsers}
-            stations={mockStations}
-            sessionOverrides={sessionOverrides}
+            stations={stations}
             onEdit={(user) => {
               setEditingUser(user);
               setIsAddingUser(false);
             }}
             onDeleteUser={handleDeleteUser}
-            onToggleSession={handleToggleSession}
           />
         </div>
       )}
@@ -391,7 +396,7 @@ export default function AdminPage() {
 
       {showForm && (
         <UserForm
-          stations={mockStations}
+          stations={stations}
           editingUser={editingUser}
           onSave={handleSaveUser}
           isSaving={isSavingUser}

@@ -2,8 +2,8 @@
 
 Next.js dashboard for the Y-NAXII weather monitoring station network. Five
 screens (Live Dashboard, Compare, Reports, Station Map, Admin) reading from a
-mock data layer today, built so a real backend can be dropped in by setting one
-`.env` variable — see **Backend integration** below.
+real API (REST + WebSocket) — point `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_WS_URL` at
+the backend and every screen reads from it. See **Backend integration** below.
 
 **This repo is code only.** All planning, requirements, and architecture
 documentation lives in the separate `weather-dashboard-docs` repo — read these
@@ -37,70 +37,65 @@ npm run dev
 | Variable | Purpose |
 |---|---|
 | `NEXT_PUBLIC_API_BASE_URL` | Base URL for every REST call (`lib/api.ts`). Same-origin deployment (ADR-0003) — typically a relative path like `/api/v1`, not a separate domain. |
-| `NEXT_PUBLIC_WS_URL` | WebSocket URL for live telemetry (`lib/websocket.ts`). **Not currently connected by any screen** — see "Known gaps" below. |
+| `NEXT_PUBLIC_WS_URL` | WebSocket URL for live telemetry (`lib/websocket.ts`). |
 | `NEXT_PUBLIC_DEV_LOGIN_EMAIL` / `NEXT_PUBLIC_DEV_LOGIN_PASSWORD` | Dev-only login, used automatically **only** when `POST /auth/login`/`GET /auth/me` fail with a network error (no backend reachable at all) rather than a real HTTP response — see `lib/mockSession.ts`. Once a real backend exists these are never consulted. |
 
 ## Backend integration model
 
-**Write actions** (creating/editing/deleting something) already call real,
-documented endpoints (see `api-specification.md`) through `lib/api.ts`'s
-`apiFetch()` — Station Map's Provision/Edit Station, and Admin's
-Add/Edit/Delete User. The pattern used for all of these:
+Every screen reads from the API — there is no mock data layer. All requests
+go through `lib/api.ts`'s `apiFetch()` (which also unwraps the API's standard
+`{"error": {"code", "message"}}` shape into `ApiError`), and every response is
+converted from snake_case to the app's camelCase types in one place,
+`lib/apiMappers.ts`.
 
-```ts
-try {
-  const result = await apiFetch("/some/endpoint", { method: "POST", body: ... });
-  // apply the real result
-} catch {
-  // no backend reachable yet (network error) — fall back to updating local
-  // mock state directly, so every flow is still testable end-to-end today
-}
-```
+| Screen | Reads | Writes |
+|---|---|---|
+| Live Dashboard | `useLiveTelemetry` — `GET /telemetry/{id}/latest` + `?resolution=minute\|hour\|day`, then live readings over the WebSocket | — |
+| Compare | `useCompareData` — `GET /stations/compare?ids=&resolution=hour\|day` | — |
+| Reports | `useReports` — `GET /reports/schedules`, `GET /reports/generated` | `POST`/`DELETE /reports/schedules`, `POST /telemetry/{id}/upload` (manual recovery) |
+| Station Map | `StationContext` — `GET /stations`; inspect pod via `useStationSnapshot` | `POST /stations`, `PATCH /stations/{id}` |
+| Admin | `GET /users` | `POST`/`PATCH`/`DELETE /users/{id}` |
 
-Point `NEXT_PUBLIC_API_BASE_URL` at a real backend and these actions start using
-it automatically, with zero code changes — the fallback branch simply stops
-being reached once real HTTP responses (success or error) come back instead of
-a network failure.
+**Failure behaviour:** a failed write shows an error and changes nothing on
+screen — the UI never claims something was saved that the server didn't
+confirm. A failed read shows a per-screen error state with a Retry button.
 
-**Reads (the data every screen displays) are not wired up yet** — Dashboard,
-Compare, and Reports render entirely from static mock modules
-(`lib/mockStationData.ts`, `lib/liveTelemetryData.ts`, `lib/mockReports.ts`),
-and Station Map/Admin's own lists (`lib/mockStations.ts`, `lib/mockUsers.ts`)
-are the same. None of these currently call `apiFetch`. `api-specification.md`
-§9 documents exactly which `GET` endpoint each screen needs; wiring each mock
-module up to `apiFetch` (most naturally inside `lib/StationContext.tsx` for
-station data, per its own header comment) is real remaining work, not a
-config flip. A handful of write actions also have no backing endpoint
-documented yet at all (calibration offsets, the map's "Ping" diagnostic, admin
-session-revoke) — those stay local-only regardless; see "Known gaps."
+**Live data:** `lib/websocket.ts` owns the single WebSocket. On every
+(re)connect it first triggers a REST re-fetch (so a reconnect never resumes
+from a stale value), then re-subscribes; reconnects use exponential backoff.
+The dashboard shows a banner while the socket is down.
 
-## Known gaps (found while making every screen backend-ready)
+**Offline cards:** every telemetry field on `StationReading` is nullable. A
+`null` means that sensor sent nothing, and the card that depends on it
+replaces its body with an offline notice (`components/layout/OfflineCardBody.tsx`)
+— independent of whether the station itself is online. A station that has
+never reported at all gets a page-level "no data" state instead.
 
-- **Wind speed/direction has no confirmed hardware field.** It's displayed
-  across every screen (Live Dashboard, Compare, Reports export), but the
-  hardware team's confirmed payload has no wind sensor column. Flagged as a 🟡
-  open question in `api-specification.md` v3.0 §5 — needs a real answer before
-  it's more than mock data.
-- **`lib/websocket.ts` is fully built but never connected.** A `DashboardSocket`
-  class matching the documented `/ws` contract exists, and `NEXT_PUBLIC_WS_URL`
-  is already in `.env.example`, but nothing in the app instantiates it — every
-  screen reads static/mock data with no live connection. Wiring this up is real
-  remaining work, not a config flip.
+**Dev login (the one remaining fallback):** `lib/mockAuth.ts` /
+`lib/mockSession.ts` only kick in when `POST /auth/login` or `GET /auth/me`
+fail with a *network* error (no backend reachable), using
+`NEXT_PUBLIC_DEV_LOGIN_*`. Real HTTP responses (success or error) always win.
+
+## Known gaps
+
+- **Wind speed/direction** are wired end-to-end (dashboard, compare, export)
+  and confirmed by the hardware team, but the sensor isn't in the payload yet —
+  until it is, every wind card correctly shows its offline state. No gust field
+  exists in the payload, so gust always reads "—".
 - **No backing endpoint yet for:** station calibration offsets
-  (`components/map/CalibrationDrawer.tsx`), the map's "Ping" diagnostic
-  (`components/map/StationInspectPod.tsx`), or admin session-revoke
-  (`components/admin/UserTable.tsx`'s session toggle). All three are
-  local-only/simulated.
-- **Declared but unused dependencies:** `package.json` lists `apexcharts` /
-  `react-apexcharts` and `@dnd-kit/*`, but no rendered screen uses them — every
-  real chart in this app is hand-rolled inline SVG (see `lib/chartPaths.ts`).
-  The only file that imports ApexCharts (`components/widgets/TemperatureTrendChart.tsx`)
-  is itself not rendered anywhere (kept only for its exported `TrendPoint` type
-  — see below). Safe to remove these packages if bundle size matters; left in
-  for now since removing them wasn't part of any requested screen fix.
-- Run `node scripts/find-orphaned-files.js` any time to re-check for files that
-  have drifted out of use — see that script's own header comment for how it
-  works.
+  (`components/map/CalibrationDrawer.tsx`, local to the session), per-user
+  2FA/last-activity/session-revoke (removed from the Admin roster rather than
+  faked), and an audit log (the Audit tab lists only this session's actions).
+  Admin settings persist to `localStorage`, not a `/settings` endpoint.
+- **Still placeholder data:** `lib/stationHardware.ts` (per-station firmware,
+  sensor suite, elevation, gateway — used by Compare/Map) and the 7-day
+  forecast strip (`buildPlaceholderForecast` in `lib/liveTelemetryData.ts`).
+  Neither has an API behind it.
+- `GET /users` has no display name, so `mapUser` derives one from the email.
+- **Declared but unused dependencies:** `apexcharts` / `react-apexcharts` and
+  `@dnd-kit/*` are in `package.json`, but no rendered screen uses them — every
+  chart is hand-rolled SVG (`lib/chartPaths.ts`). Safe to remove.
+- Run `node scripts/find-orphaned-files.js` any time to re-check for unused files.
 
 ## Structure
 
@@ -108,7 +103,7 @@ session-revoke) — those stay local-only regardless; see "Known gaps."
 app/(protected)/    Every real screen — dashboard, compare, reports, stations, admin
 app/login/          Auth
 components/         One folder per screen, plus layout/ (shared chrome) and widgets/ (legacy, mostly unused — see below)
-lib/                Data (mock + real), contexts, and small framework-free utilities
+lib/                API layer (hooks, mappers, websocket), contexts, and small utilities
 scripts/            Repo-maintenance scripts (currently just the orphan finder)
 ```
 
@@ -137,7 +132,7 @@ scripts/            Repo-maintenance scripts (currently just the orphan finder)
 | `AccountMenu.tsx` | Header's user menu (profile, change password, logout). |
 | `NotificationsPanel.tsx` | Header's notification bell dropdown. |
 | `LiveClock.tsx` | Header's live-updating clock. |
-| `SseLatencyBadge.tsx` | **Orphaned** — not rendered anywhere currently; was meant to show the live SSE interval in the header. See "Known gaps." |
+| `OfflineCardBody.tsx` | The shared "no data / sensor offline" state every dashboard card shows when its reading is `null`. |
 | `Skeleton.tsx` | Shared skeleton-loading primitives (`Skeleton`, `SkeletonCard`, `SkeletonTable`) used by every screen's `loading.tsx`. |
 
 ### `components/dashboard/` — Live Dashboard
@@ -200,7 +195,6 @@ scripts/            Repo-maintenance scripts (currently just the orphan finder)
 |---|---|
 | `ChangePasswordModal.tsx` | Change-password form (header's account menu). |
 | `ForgotPasswordModal.tsx` | Forgot-password flow on the login screen. |
-| `NodeHealthPulse.tsx` | Decorative animated pulse on the login screen. |
 | `WeatherStationIllustration.tsx` | Decorative station illustration on the login screen. |
 
 ### `components/widgets/` — legacy, mostly removed
@@ -208,13 +202,13 @@ scripts/            Repo-maintenance scripts (currently just the orphan finder)
 Used to be a larger set of generic chart/table widgets from an earlier design
 pass. 14 of the original 16 files were confirmed orphaned (never rendered by
 any real screen) and deleted. The remaining two are kept only because
-`lib/mockStationData.ts` imports their exported **types**, not the components
+`lib/deriveStationView.ts` imports their exported **types**, not the components
 themselves:
 
 | File | What it is |
 |---|---|
-| `TemperatureTrendChart.tsx` | Not rendered anywhere — kept for its `TrendPoint` type, which every full-day trend series in `mockStationData.ts` uses. |
-| `DailySummaryTable.tsx` | Not rendered anywhere — kept for its `DailySummaryRow` type, used by `mockStationData.ts`'s `dailyRows`. |
+| `TemperatureTrendChart.tsx` | Not rendered anywhere — kept for its `TrendPoint` type, which every full-day trend series in `deriveStationView.ts` uses. |
+| `DailySummaryTable.tsx` | Not rendered anywhere — kept for its `DailySummaryRow` type, used by `deriveStationView.ts`'s `dailyRows`. |
 
 ### `lib/` — data, contexts, utilities
 
@@ -227,36 +221,35 @@ themselves:
 | `AdminSettingsContext.tsx` | Draft/published admin settings (basemap theme, tolerances) — see `adminSettings.ts`. |
 | `NotificationsContext.tsx` | Header notification bell state. |
 
-**Mock data (the "backend" until a real one exists):**
+**Data layer (hooks that talk to the API):**
 
 | File | What it is |
 |---|---|
-| `mockStations.ts` | The station list. |
-| `mockStationData.ts` | Per-station telemetry history — temp/humidity/pressure/rain (minute/hourly/daily) full-day series, daily summary rows. |
-| `liveTelemetryData.ts` | Per-station "extras" not in the core series: dew point, wind, forecast, the 60-row ingest log. |
-| `mockUsers.ts` | The user roster. |
-| `mockReports.ts` | Generated reports + schedules. |
-| `mockAuth.ts` / `mockSession.ts` | Login/session simulation, including the dev-login fallback described above. |
+| `useLiveTelemetry.ts` | Live Dashboard's data source: REST (latest + minute/hour/day) plus WebSocket live updates, with resync-on-reconnect. |
+| `deriveStationView.ts` | Turns raw readings into the shapes each dashboard card expects (`StationView`, `LiveTelemetryExtras`) — no invented values; gaps stay `null`. |
+| `useCompareData.ts` | Compare screen's `GET /stations/compare` fetch. |
+| `useReports.ts` | Reports schedules/generated reports, plus create/delete schedule. |
+| `useStationSnapshot.ts` | Latest reading + 12h sparkline data for the map's inspect pod. |
+| `apiMappers.ts` | snake_case API responses → camelCase app types (`mapStation`, `mapReading`, `mapUser`, ...). |
+| `mockAuth.ts` / `mockSession.ts` | Dev-login fallback only (see "Backend integration model"). |
 
-**Real (non-mock) utilities:**
+**Utilities:**
 
 | File | What it is |
 |---|---|
 | `api.ts` | The single `apiFetch()` wrapper + `ApiError` — every real network call in the app goes through this. |
-| `websocket.ts` | `DashboardSocket` — real-time client, built but not yet connected (see "Known gaps"). |
+| `websocket.ts` | `DashboardSocket` — the single WebSocket: backoff reconnect, resync-then-resubscribe. |
 | `types.ts` | Every shared TypeScript type/interface (`Station`, `User`, `StationReading`, `ReportSchedule`, ...) — matches the hardware payload and API response shapes exactly. |
 | `compareData.ts` | Builds the Compare screen's chart series and analytics matrix rows from station data. |
 | `comparisonMetrics.ts` | Generic metric-stats helpers (high/low/avg) used by `compareData.ts`. |
 | `reportsDisplay.ts` | Formatting helpers for report schedules (recurrence label, next-run label, format icons/colors). |
 | `manualUpload.ts` | CSV column validation for the manual recovery upload flow. |
 | `calibration.ts` | Calibration-offset types/defaults. |
-| `stationHardware.ts` | Per-station hardware metadata (firmware, sensor suite health, elevation, terrain) — same "realistic mock, not random" pattern as `mockStationData.ts`; read by the Map, Compare, and Admin screens wherever that context is shown. |
-| `sensorBand.ts` | Computes the Sensor Triad card's agreement bands. |
+| `stationHardware.ts` | Placeholder per-station hardware metadata (not from the API — see "Known gaps"). |
 | `chartPaths.ts` | SVG path helpers (`scaleSeries`, `smoothLinePath`, `areaPath`) shared by every hand-rolled chart in this app. |
 | `adminSettings.ts` | `AdminSettings` type + defaults (basemap theme, polling interval, sensor/rain tolerances). |
 | `auditLog.ts` | Local audit-log helper used by the Admin screen. |
-| `userSecurity.ts` | Per-user session/security mock state (last activity, session-active flag). |
-| `notifications.ts` | Notification list mock data. |
+| `notifications.ts` | Notification list data for the header bell (local; no notifications endpoint yet). |
 | `geocode.ts` | Reverse-geocoding helper for the map's coordinate inputs. |
 | `navigation.ts` / `headerNav.ts` | Screen route/label definitions for the header and mobile nav. |
 | `layout.ts` | The single `PAGE_CONTAINER` width/padding class string, shared by the header and page layout so they can't drift apart. |

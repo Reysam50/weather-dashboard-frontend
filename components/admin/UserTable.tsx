@@ -2,15 +2,12 @@
 
 import { useState } from "react";
 import type { User, Station } from "@/lib/types";
-import { getUserSecurity } from "@/lib/userSecurity";
 
 interface UserTableProps {
   users: User[];
   stations: Station[];
-  sessionOverrides: Record<string, boolean>;
   onEdit: (user: User) => void;
   onDeleteUser: (user: User) => void;
-  onToggleSession: (id: string) => void;
 }
 
 const ROLE_LABELS: Record<User["role"], string> = {
@@ -49,16 +46,15 @@ function initials(name: string) {
 
 /**
  * User & RBAC roster table — matches GET /users (api-specification.md §3).
- * Restyled to the redesign; adds the 2FA/Last-Activity/Governance columns
- * from userSecurity.ts's mock security profile overlay.
+ * Only shows what the API actually returns (name/email/role/stations) —
+ * the 2FA, last-activity and session columns that used to be here were
+ * driven by a fabricated per-user profile, with no backing endpoint.
  */
 export default function UserTable({
   users,
   stations,
-  sessionOverrides,
   onEdit,
   onDeleteUser,
-  onToggleSession,
 }: UserTableProps) {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
@@ -75,7 +71,7 @@ export default function UserTable({
       setConfirmingDeleteId(user.id);
       // Give the confirm state an expiry so an accidental second click
       // days later doesn't delete someone — matches the pattern already
-      // used for the transient ping-result state elsewhere in this app.
+      // used for other transient states in this app.
       setTimeout(() => setConfirmingDeleteId((current) => (current === user.id ? null : current)), 4000);
     }
   }
@@ -90,22 +86,18 @@ export default function UserTable({
               <th className="py-3 px-4">Official Email</th>
               <th className="py-3 px-4">Security Role</th>
               <th className="py-3 px-4">Assigned Stations</th>
-              <th className="py-3 px-4">2FA / Credential</th>
-              <th className="py-3 px-4">Last Activity</th>
               <th className="py-3 px-4 text-right">Governance</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-line text-slate-300">
             {users.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
+                <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
                   No users yet.
                 </td>
               </tr>
             ) : (
               users.map((user, i) => {
-                const sec = getUserSecurity(user.id);
-                const sessionActive = sessionOverrides[user.id] ?? sec.sessionActive;
                 const confirmingDelete = confirmingDeleteId === user.id;
                 return (
                   <tr
@@ -124,16 +116,7 @@ export default function UserTable({
                         <div className="flex flex-col">
                           <div className="flex items-center gap-1.5">
                             <span className="font-semibold text-white text-[13px]">{user.name}</span>
-                            {sec.verified && (
-                              <span
-                                className="material-symbols-outlined text-[14px] text-primary-container"
-                                title="Verified Identity"
-                              >
-                                verified
-                              </span>
-                            )}
                           </div>
-                          <span className="text-[11px] text-on-surface-variant">{sec.title}</span>
                         </div>
                       </div>
                     </td>
@@ -154,26 +137,6 @@ export default function UserTable({
                         <span>
                           {user.role === "station_operator" ? stationNames(user.stationIds) : "All Stations (Network Wide)"}
                         </span>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-flex items-center gap-1 ${
-                          sec.twoFactorEnforced ? "text-secondary" : "text-slate-500"
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-[14px]">
-                          {sec.twoFactorEnforced ? "lock" : "lock_open"}
-                        </span>
-                        {sec.twoFactorEnforced ? "Enforced (FIDO2 / TOTP)" : "Not enrolled"}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="flex flex-col">
-                        <span className={sessionActive ? "text-primary-container font-semibold" : "text-slate-400"}>
-                          {sec.lastActivityLabel}
-                        </span>
-                        <span className="text-[10px] text-on-surface-variant">IP: {sec.lastActivityIp}</span>
                       </div>
                     </td>
                     <td className="py-3.5 px-4 text-right">
@@ -198,16 +161,6 @@ export default function UserTable({
                         >
                           <span className="material-symbols-outlined text-[16px]">
                             {confirmingDelete ? "warning" : "person_remove"}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onToggleSession(user.id)}
-                          title={sessionActive ? "Revoke Session" : "No active session"}
-                          className="p-1.5 rounded bg-card-bg-subtle hover:bg-slate-700 text-on-surface-variant hover:text-error transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">
-                            {sessionActive ? "person_off" : "person_check"}
                           </span>
                         </button>
                       </div>

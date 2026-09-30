@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
 import { tryMockLogin } from "@/lib/mockSession";
-import NodeHealthPulse from "@/components/auth/NodeHealthPulse";
 import ForgotPasswordModal from "@/components/auth/ForgotPasswordModal";
 import WeatherStationIllustration from "@/components/auth/WeatherStationIllustration";
 
@@ -117,7 +116,6 @@ export default function LoginPage() {
               Observation Site — Zomba Plateau Ridge
             </span>
           </div>
-          <NodeHealthPulse />
         </div>
 
         {/* Right column: auth card */}

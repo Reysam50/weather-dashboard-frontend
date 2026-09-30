@@ -12,9 +12,13 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** The API's machine-readable error code (api-specification.md's
+   * Standard Error Shape), e.g. "DEVICE_ALREADY_PAIRED", when present. */
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -40,10 +44,28 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     // not here — this wrapper stays generic and just throws; individual
     // pages/callers still need to handle 403/404 in whatever way makes
     // sense for that specific request (most don't yet).
-    throw new ApiError(res.status, await res.text());
+    const raw = await res.text();
+    // Standard Error Shape: {"error": {"code": "...", "message": "..."}}.
+    // Surface just the human-readable message, not the raw JSON body.
+    try {
+      const parsed = JSON.parse(raw) as { error?: { code?: string; message?: string } };
+      if (parsed.error?.message) {
+        throw new ApiError(res.status, parsed.error.message, parsed.error.code);
+      }
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+    }
+    throw new ApiError(res.status, raw || res.statusText);
   }
 
-  return res.json();
+  // 204 No Content (DELETE endpoints) and other empty bodies have nothing
+  // to parse — calling res.json() on them throws, which would make a
+  // successful delete look like a failure.
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 /**

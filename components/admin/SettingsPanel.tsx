@@ -1,7 +1,7 @@
 "use client";
 
 import type { AdminSettings } from "@/lib/adminSettings";
-import { mockStations } from "@/lib/mockStations";
+import { useStationContext } from "@/lib/StationContext";
 
 interface SettingsPanelProps {
   draft: AdminSettings;
@@ -12,16 +12,10 @@ interface SettingsPanelProps {
  * System & Map Preferences tab. Basemap theme is genuinely wired — it's
  * the same lib/adminSettings.ts the Station Map screen reads on mount
  * (see app/(protected)/stations/page.tsx).
- *
- * The Ingest & Polling Frequency and Data Transmission Resilience cards
- * that used to live here (a set of polling-interval radio options, plus
- * a Dual-Pipe mTLS Verification toggle) were removed from this UI.
- * pollingIntervalSec itself is left in AdminSettings/DEFAULT_SETTINGS —
- * the header's SseLatencyBadge still reads it — it's just fixed at the
- * default (60s) now that there's no control here to change it.
  */
 export default function SettingsPanel({ draft, onChange }: SettingsPanelProps) {
-  const regionBounds = mockStations.reduce(
+  const { stations } = useStationContext();
+  const regionBounds = stations.length === 0 ? null : stations.reduce(
     (acc, s) => ({
       minLat: Math.min(acc.minLat, s.latitude),
       maxLat: Math.max(acc.maxLat, s.latitude),
@@ -172,9 +166,11 @@ export default function SettingsPanel({ draft, onChange }: SettingsPanelProps) {
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-[18px] text-primary-container">public</span>
           <span className="font-mono text-xs text-white font-semibold">
-            REGIONAL BOUNDING BOX: {regionBounds.minLat.toFixed(3)}S, {regionBounds.minLng.toFixed(3)}E
-            {" → "}
-            {Math.abs(regionBounds.maxLat).toFixed(3)}S, {regionBounds.maxLng.toFixed(3)}E
+            {regionBounds
+              ? `REGIONAL BOUNDING BOX: ${regionBounds.minLat.toFixed(3)}S, ${regionBounds.minLng.toFixed(3)}E → ${Math.abs(
+                  regionBounds.maxLat
+                ).toFixed(3)}S, ${regionBounds.maxLng.toFixed(3)}E`
+              : "REGIONAL BOUNDING BOX: no stations"}
           </span>
         </div>
         <span className="font-mono text-[11px] text-secondary">CALIBRATED COORD SYSTEM: WGS-84 / UTM ZONE 36S</span>

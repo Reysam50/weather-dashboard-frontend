@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import type { Station } from "@/lib/types";
-import { parseUploadFile, REQUIRED_UPLOAD_COLUMNS, type ParsedUpload } from "@/lib/manualUpload";
+import { parseUploadFile, type ParsedUpload } from "@/lib/manualUpload";
+import { apiFetch, ApiError } from "@/lib/api";
 import StationScopeSelect from "./StationScopeSelect";
 
 interface ManualRecoveryUploadCardProps {
@@ -24,42 +25,6 @@ interface BackfillAuditRow {
   dedupedCollisions: number;
 }
 
-const SEED_AUDIT: BackfillAuditRow[] = [
-  {
-    id: "seed-1",
-    timestamp: "2026-09-02T14:11:04Z",
-    stationName: "Blantyre CBD",
-    sourceFile: "w_log_cell_outage_aug.txt",
-    ingestedRows: 14400,
-    dedupedCollisions: 124,
-  },
-  {
-    id: "seed-2",
-    timestamp: "2026-08-19T09:22:50Z",
-    stationName: "Zomba Plateau",
-    sourceFile: "w_log_lightning_sd_swap.txt",
-    ingestedRows: 2880,
-    dedupedCollisions: 0,
-  },
-];
-
-/** Builds a small synthetic w_log.txt in-memory so "Load Simulation
- * Sample" has something real to parse without a physical SD card file —
- * clearly labeled as a simulation, not passed off as real recovered data. */
-function buildSimulationSample(rowCount: number): string {
-  const header = REQUIRED_UPLOAD_COLUMNS.join(",");
-  const now = Date.now();
-  const rows = Array.from({ length: rowCount }, (_, i) => {
-    const t = new Date(now - (rowCount - i) * 60000).toISOString();
-    const airTemp = (24 + Math.sin(i / 20) * 4).toFixed(2);
-    const pressure = (1012 + Math.cos(i / 30) * 2).toFixed(2);
-    const humidity = (55 + Math.sin(i / 15) * 10).toFixed(1);
-    const rain = Math.max(0, Math.sin(i / 50)).toFixed(2);
-    return `${t},${airTemp},${pressure},${humidity},${rain}`;
-  });
-  return [header, ...rows].join("\n");
-}
-
 /**
  * Manual data-recovery upload — FR-11.3: when a station has been offline
  * too long for automatic backfill (FR-11.2) to cover the gap, someone
@@ -75,22 +40,23 @@ function buildSimulationSample(rowCount: number): string {
  * a confirmed one — worth double-checking once the backend team documents
  * it, per the page's TODO.
  *
- * The CSV parsing/validation below is real and works today; only the
- * final "send it to the server" step is mocked, since there's no backend
- * yet — see the TODO inside handleUpload for exactly what that call
- * should look like once one exists. The audit log below is session-local
- * for the same reason (no backend audit store yet) — same pattern as the
- * Admin screen's Audit Logs tab.
+ * The CSV is validated client-side first, then the original file is sent to
+ * POST /telemetry/{station_id}/upload as multipart/form-data. The audit log
+ * below is session-local (no backend audit store yet) — it only lists uploads
+ * made during this visit.
  */
 export default function ManualRecoveryUploadCard({ stations }: ManualRecoveryUploadCardProps) {
   const [stationId, setStationId] = useState(stations[0]?.id ?? "");
   const [fileName, setFileName] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [parsed, setParsed] = useState<ParsedUpload | null>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [auditLog, setAuditLog] = useState<BackfillAuditRow[]>(SEED_AUDIT);
+  // Session-local: there's no audit-log endpoint in the API yet, so this only
+  // lists uploads made during this visit — it starts empty, not pre-filled.
+  const [auditLog, setAuditLog] = useState<BackfillAuditRow[]>([]);
 
   function resetPreview() {
     setResult(null);
@@ -98,10 +64,11 @@ export default function ManualRecoveryUploadCard({ stations }: ManualRecoveryUpl
     setParsed(null);
   }
 
-  async function loadFile(file: File) {
+  async function loadFile(picked: File) {
     resetPreview();
-    setFileName(file.name);
-    const text = await file.text();
+    setFile(picked);
+    setFileName(picked.name);
+    const text = await picked.text();
     setParsed(parseUploadFile(text));
   }
 
@@ -121,15 +88,8 @@ export default function ManualRecoveryUploadCard({ stations }: ManualRecoveryUpl
     if (file) loadFile(file);
   }
 
-  function handleLoadSample() {
-    resetPreview();
-    const sampleName = "w_log_simulation_sample.txt";
-    setFileName(sampleName);
-    setParsed(parseUploadFile(buildSimulationSample(4280)));
-  }
-
   async function handleUpload() {
-    if (!parsed || !stationId) return;
+    if (!parsed || !stationId || !file) return;
     if (parsed.missingRequiredColumns.length > 0) {
       setError(`File is missing required column(s): ${parsed.missingRequiredColumns.join(", ")}`);
       return;
@@ -138,37 +98,38 @@ export default function ManualRecoveryUploadCard({ stations }: ManualRecoveryUpl
     setIsUploading(true);
     setError(null);
 
-    // TODO: send the actual file, not just the parsed preview —
-    // apiFetch already skips forcing a JSON Content-Type for FormData
-    // bodies (see lib/api.ts), so this is ready to wire up once the
-    // backend exists:
-    //
-    //   const formData = new FormData();
-    //   formData.append("file", file); // the raw File object from the input
-    //   const response = await apiFetch<UploadResult>(
-    //     `/telemetry/${stationId}/upload`,
-    //     { method: "POST", body: formData }
-    //   );
-    //   setResult(response);
-    //
-    // For now, simulate the response from what was already parsed
-    // client-side, so the rest of the flow (result summary, and FR-11.2's
-    // "duplicates ignored" behavior) is at least visually testable.
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    const inserted = parsed.rows.length;
-    setResult({ rowsReceived: inserted, rowsInserted: inserted, rowsDuplicate: 0 });
-    setAuditLog((prev) => [
-      {
-        id: crypto.randomUUID(),
-        timestamp: new Date().toISOString(),
-        stationName: stations.find((s) => s.id === stationId)?.name ?? stationId,
-        sourceFile: fileName ?? "unknown file",
-        ingestedRows: inserted,
-        dedupedCollisions: 0,
-      },
-      ...prev,
-    ]);
-    setIsUploading(false);
+    try {
+      const formData = new FormData();
+      formData.append("file", file as File);
+      const response = await apiFetch<{ rows_received: number; rows_inserted: number; rows_duplicate: number }>(
+        `/telemetry/${stationId}/upload`,
+        { method: "POST", body: formData }
+      );
+      setResult({
+        rowsReceived: response.rows_received,
+        rowsInserted: response.rows_inserted,
+        rowsDuplicate: response.rows_duplicate,
+      });
+      setAuditLog((prev) => [
+        {
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          stationName: stations.find((s) => s.id === stationId)?.name ?? stationId,
+          sourceFile: fileName ?? "unknown file",
+          ingestedRows: response.rows_inserted,
+          dedupedCollisions: response.rows_duplicate,
+        },
+        ...prev,
+      ]);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Couldn't reach the server to upload this file. Please try again."
+      );
+    } finally {
+      setIsUploading(false);
+    }
   }
 
   return (
@@ -221,13 +182,6 @@ export default function ManualRecoveryUploadCard({ stations }: ManualRecoveryUpl
             Browse Local File System
             <input type="file" accept=".csv,.txt" onChange={handleFileChange} className="hidden" />
           </label>
-          <button
-            type="button"
-            onClick={handleLoadSample}
-            className="px-3 py-2 rounded-lg bg-card-bg-subtle hover:bg-slate-700 text-primary-container border border-border-line transition-colors"
-          >
-            Load Simulation Sample (4,280 readings)
-          </button>
         </div>
       </div>
 

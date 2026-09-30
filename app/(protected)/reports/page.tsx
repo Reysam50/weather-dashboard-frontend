@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
 import QuickExportCard from "@/components/reports/QuickExportCard";
 import ScheduleReportCard from "@/components/reports/ScheduleReportCard";
 import GeneratedReportsCard from "@/components/reports/GeneratedReportsCard";
 import ManualRecoveryUploadCard from "@/components/reports/ManualRecoveryUploadCard";
-import { mockStations } from "@/lib/mockStations";
-import { mockSchedules, mockGeneratedReports } from "@/lib/mockReports";
+import ReportsLoading from "./loading";
+import { useStationContext } from "@/lib/StationContext";
+import { useReports } from "@/lib/useReports";
 import { useAuth } from "@/lib/AuthContext";
-import type { ReportSchedule } from "@/lib/types";
 
 /**
  * Reports screen — FR-8 (ad-hoc data export) + FR-9 (scheduled report
@@ -26,38 +25,38 @@ import type { ReportSchedule } from "@/lib/types";
  * ManualRecoveryUploadCard.tsx's comment on why that's inferred rather
  * than explicitly confirmed in the spec).
  *
- * TODO (frontend developer):
- * - replace mockSchedules/mockGeneratedReports with real fetches to
- *   GET /reports/schedules and GET /reports/generated
- * - wire handleCreateSchedule to POST /reports/schedules and
- *   handleDeleteSchedule to DELETE /reports/schedules/{id}
+ * Data comes from lib/useReports.ts (GET/POST/DELETE /reports/schedules,
+ * GET /reports/generated); the station list comes from StationContext.
  */
 export default function ReportsPage() {
   const { user } = useAuth();
   const allowAllStations = user.role !== "station_operator";
   const canRecoverData = user.role === "technical_team";
+  const { stations } = useStationContext();
+  const { schedules, generated, status, errorMessage, actionError, createSchedule, deleteSchedule, refetch } =
+    useReports();
   const defaultStationId =
     user.role === "station_operator" && user.stations !== "all" && user.stations.length > 0
       ? user.stations[0]
-      : mockStations[0]?.id ?? "1";
+      : stations[0]?.id ?? "";
 
-  const [schedules, setSchedules] = useState<ReportSchedule[]>(mockSchedules);
+  if (status === "loading") return <ReportsLoading />;
 
-  function handleCreateSchedule(input: {
-    stationId: string | null;
-    frequency: ReportSchedule["frequency"];
-    format: ReportSchedule["format"];
-    customDate?: string;
-    customTime?: string;
-  }) {
-    // TODO: POST to /reports/schedules — this just appends locally so the
-    // flow is testable end-to-end in the meantime.
-    setSchedules((prev) => [...prev, { id: crypto.randomUUID(), createdBy: "You", ...input }]);
-  }
-
-  function handleDeleteSchedule(id: string) {
-    // TODO: DELETE /reports/schedules/{id}
-    setSchedules((prev) => prev.filter((s) => s.id !== id));
+  if (status === "error") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+        <span className="material-symbols-outlined text-[36px] text-rose-400">cloud_off</span>
+        <p className="text-white font-semibold">Couldn&apos;t load reports</p>
+        <p className="text-sm text-slate-400 max-w-sm">{errorMessage}</p>
+        <button
+          type="button"
+          onClick={refetch}
+          className="mt-2 px-4 py-2 rounded-lg bg-primary-container text-slate-950 font-bold text-sm hover:bg-primary transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -88,25 +87,31 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {actionError && (
+        <div className="px-4 py-2.5 rounded-xl bg-error/10 border border-error/25 text-error text-xs font-mono">
+          {actionError}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
         <div className="lg:col-span-1">
-          <QuickExportCard stations={mockStations} defaultStationId={defaultStationId} />
+          <QuickExportCard stations={stations} defaultStationId={defaultStationId} />
         </div>
         <div className="lg:col-span-2">
           <ScheduleReportCard
-            stations={mockStations}
+            stations={stations}
             schedules={schedules}
             allowAllStations={allowAllStations}
             defaultStationId={defaultStationId}
-            onCreateSchedule={handleCreateSchedule}
-            onDeleteSchedule={handleDeleteSchedule}
+            onCreateSchedule={createSchedule}
+            onDeleteSchedule={deleteSchedule}
           />
         </div>
       </div>
 
-      <GeneratedReportsCard reports={mockGeneratedReports} stations={mockStations} />
+      <GeneratedReportsCard reports={generated} stations={stations} />
 
-      {canRecoverData && <ManualRecoveryUploadCard stations={mockStations} />}
+      {canRecoverData && <ManualRecoveryUploadCard stations={stations} />}
     </div>
   );
 }

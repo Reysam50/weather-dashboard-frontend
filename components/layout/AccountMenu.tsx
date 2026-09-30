@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { ROLE_LABELS } from "@/lib/mockAuth";
 import { useAuth } from "@/lib/AuthContext";
-import { mockStations } from "@/lib/mockStations";
+import { useStationContext } from "@/lib/StationContext";
 import { clearMockSession } from "@/lib/mockSession";
 import ChangePasswordModal from "@/components/auth/ChangePasswordModal";
 
@@ -28,6 +28,7 @@ function initials(email: string) {
  */
 export default function AccountMenu() {
   const { user } = useAuth();
+  const { stations } = useStationContext();
   const router = useRouter();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
@@ -41,7 +42,7 @@ export default function AccountMenu() {
       : user.stations.length === 0
       ? "No stations assigned"
       : user.stations
-          .map((id) => mockStations.find((s) => s.id === id)?.name ?? id)
+          .map((id) => stations.find((s) => s.id === id)?.name ?? id)
           .join(", ");
 
   function handleToggle() {

@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import type { StationMockData } from "@/lib/mockStationData";
+import type { StationView } from "@/lib/deriveStationView";
 import type { LiveTelemetryExtras } from "@/lib/liveTelemetryData";
 import { scaleSeries, smoothLinePath, areaPath } from "@/lib/chartPaths";
+import { OfflineCardBody } from "@/components/layout/OfflineCardBody";
 
 const RANGE_BUTTONS = [
   { label: "24H", hours: 24 },
@@ -36,9 +37,10 @@ export default function DiurnalCycleCard({
   data,
   extras,
 }: {
-  data: StationMockData;
+  data: StationView;
   extras: LiveTelemetryExtras;
 }) {
+  const hasData = data.fullDayTrend.length > 0;
   // windowStart/windowHours are hours-from-midnight, and can be
   // fractional while dragging — the pan bar below is a real draggable
   // control (both moving the whole window and resizing either edge),
@@ -57,14 +59,15 @@ export default function DiurnalCycleCard({
   const trend = data.fullDayTrend.slice(startIdx, endIdx);
 
   const tempValues = trend.map((p) => p.y);
-  const dewOffset = data.current.airTemp - extras.dewPoint;
-  const dewValues = tempValues.map((v) => Number((v - dewOffset - 2).toFixed(1)));
+  const dewOffset =
+    data.current.airTemp !== null && extras.dewPoint !== null ? data.current.airTemp - extras.dewPoint : null;
+  const dewValues = dewOffset !== null ? tempValues.map((v) => Number((v - dewOffset - 2).toFixed(1))) : [];
 
   const tempPoints = useMemo(() => scaleSeries(tempValues, VIEW_W, VIEW_H, 10), [tempValues]);
   const dewPoints = useMemo(() => scaleSeries(dewValues, VIEW_W, VIEW_H, 10), [dewValues]);
   const tempLine = smoothLinePath(tempPoints);
   const tempFill = areaPath(tempLine, tempPoints, VIEW_H);
-  const dewLine = smoothLinePath(dewPoints);
+  const dewLine = dewValues.length > 0 ? smoothLinePath(dewPoints) : "";
 
   const isLatestWindow = endIdx >= TOTAL_HOURS;
   const activeIndex = hoverIndex ?? tempValues.length - 1;
@@ -190,6 +193,13 @@ export default function DiurnalCycleCard({
         </div>
       </div>
 
+      {!hasData ? (
+        <OfflineCardBody
+          label="Air Temperature Offline"
+          detail="No hourly readings available yet for this station."
+        />
+      ) : (
+        <>
       {/* Thermal bands legend */}
       <div className="flex flex-wrap items-center gap-4 lg:gap-6 py-3 px-4 rounded-xl bg-[#090d16] border border-border-line my-5 font-mono text-xs">
         <span className="text-slate-500 font-medium">BANDS:</span>
@@ -272,7 +282,9 @@ export default function DiurnalCycleCard({
             <div className="text-amber-300 font-bold text-sm my-0.5">
               {tempValues[activeIndex]}°C <span className="text-[10px] text-slate-400 font-normal">(MCP9808)</span>
             </div>
-            <div className="text-cyan-300 text-[11px]">Dew Point: {dewValues[activeIndex]}°C</div>
+            <div className="text-cyan-300 text-[11px]">
+              {dewValues.length > 0 ? `Dew Point: ${dewValues[activeIndex]}°C` : "Dew Point: —"}
+            </div>
           </div>
         )}
 
@@ -343,6 +355,8 @@ export default function DiurnalCycleCard({
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

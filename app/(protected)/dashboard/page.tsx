@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
 import { useStationContext } from "@/lib/StationContext";
-import { MOCK_STATION_DATA } from "@/lib/mockStationData";
-import { getLiveTelemetryExtras } from "@/lib/liveTelemetryData";
+import { useLiveTelemetry } from "@/lib/useLiveTelemetry";
+import { degToCompass } from "@/lib/liveTelemetryData";
+import DashboardLoading from "./loading";
 import HeroMetricsRow from "@/components/dashboard/live/HeroMetricsRow";
 import DiurnalCycleCard from "@/components/dashboard/live/DiurnalCycleCard";
 import DualGaugeRainfallCard from "@/components/dashboard/live/DualGaugeRainfallCard";
@@ -12,45 +12,87 @@ import SensorTriadCard from "@/components/dashboard/live/SensorTriadCard";
 import AnemometerCard from "@/components/dashboard/live/AnemometerCard";
 import SynopticOutlookCard from "@/components/dashboard/live/SynopticOutlookCard";
 import TelemetryLogTable from "@/components/dashboard/live/TelemetryLogTable";
-import { degToCompass } from "@/lib/liveTelemetryData";
 
 /**
- * Live Telemetry Dashboard — rebuilt to match the Stitch redesign
- * (live_station_telemetry_dashboard_redesigned) exactly. This screen is
+ * Live Telemetry Dashboard — data comes from useLiveTelemetry (REST for the
+ * initial load + history, WebSocket for live updates on top; see
+ * lib/useLiveTelemetry.ts and lib/deriveStationView.ts). This screen is
  * also the source of truth for the shared header (see AppHeader.tsx).
  *
- * This used to be a customizable drag-and-drop widget grid with an inline
- * station map/list and a "Compare Stations" mode built into the page. The
- * redesign replaces all of that with this fixed analytical layout, and
- * moves station selection to the header (StationDropdown.tsx) and station
- * management to its own screen (app/(protected)/stations/page.tsx, which
- * already had its own map/list — nothing was lost by removing the
- * duplicate copy that used to live here). Station comparison will get its
- * own screen too, once we get to that Stitch design
- * (multi_station_comparison_correlation_redesigned).
+ * Two distinct "nothing to show" states, handled at different levels:
+ * - The whole fetch failed or this station has never reported anything —
+ *   handled right here, before any card renders at all.
+ * - One sensor on an otherwise-fine station isn't reporting — a `null` in
+ *   the derived data for just that field, handled inside each individual
+ *   card (see components/layout/OfflineCardBody.tsx), not here.
  */
 export default function DashboardPage() {
   const { selectedStationId } = useStationContext();
+  const { view, extras, status, errorMessage, socketState, refetch } = useLiveTelemetry(selectedStationId);
 
-  const data = useMemo(
-    () => MOCK_STATION_DATA[selectedStationId] ?? MOCK_STATION_DATA["1"],
-    [selectedStationId]
-  );
-  const extras = useMemo(() => getLiveTelemetryExtras(selectedStationId), [selectedStationId]);
+  // Client-side re-fetch after the initial page load (e.g. switching
+  // stations) isn't covered by loading.tsx, which only shows during route
+  // navigation — reuse the same skeleton for that case here.
+  if (status === "loading" || !view || !extras) {
+    return <DashboardLoading />;
+  }
+
+  if (status === "error") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+        <span className="material-symbols-outlined text-[36px] text-rose-400">cloud_off</span>
+        <p className="text-white font-semibold">Couldn&apos;t reach the telemetry API</p>
+        <p className="text-sm text-slate-400 max-w-sm">{errorMessage}</p>
+        <button
+          type="button"
+          onClick={refetch}
+          className="mt-2 px-4 py-2 rounded-lg bg-primary-container text-slate-950 font-bold text-sm hover:bg-primary transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (status === "offline") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+        <span className="material-symbols-outlined text-[36px] text-slate-500">sensors_off</span>
+        <p className="text-white font-semibold">This station hasn&apos;t reported any data</p>
+        <p className="text-sm text-slate-400 max-w-sm">
+          The API is reachable, but no telemetry has ever been received for this station.
+        </p>
+        <button
+          type="button"
+          onClick={refetch}
+          className="mt-2 px-4 py-2 rounded-lg bg-card-bg-subtle border border-border-line text-slate-300 font-semibold text-sm hover:bg-slate-800 transition-colors"
+        >
+          Check again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      <HeroMetricsRow data={data} extras={extras} />
+      {socketState !== "open" && (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 font-mono text-xs">
+          <span className="material-symbols-outlined text-[16px] animate-pulse">sync_problem</span>
+          {socketState === "connecting" ? "Reconnecting live feed…" : "Live feed disconnected — showing last fetched data."}
+        </div>
+      )}
+
+      <HeroMetricsRow data={view} extras={extras} />
 
       <section className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
         <div className="xl:col-span-8 space-y-8">
-          <DiurnalCycleCard data={data} extras={extras} />
-          <DualGaugeRainfallCard data={data} extras={extras} />
+          <DiurnalCycleCard data={view} extras={extras} />
+          <DualGaugeRainfallCard data={view} extras={extras} />
           <FullDayTrendCard
             title="RELATIVE HUMIDITY // FULL DIURNAL CYCLE"
             sensorLabel="SHT31"
             unit="%"
-            trend={data.fullDayHumidityTrend}
+            trend={view.fullDayHumidityTrend}
             lineColorHex="#22d3ee"
             fillGradientHex="#22d3ee"
             yDomain={[0, 100]}
@@ -66,7 +108,7 @@ export default function DashboardPage() {
             title="BAROMETRIC PRESSURE // FULL DIURNAL CYCLE"
             sensorLabel="BMP360"
             unit=" hPa"
-            trend={data.fullDayPressureTrend}
+            trend={view.fullDayPressureTrend}
             lineColorHex="#a855f7"
             fillGradientHex="#a855f7"
             exportFilename="pressure-diurnal-curve.csv"
@@ -80,7 +122,7 @@ export default function DashboardPage() {
             title="WIND DIRECTION // FULL DIURNAL CYCLE"
             sensorLabel="Wind Vane"
             unit="°"
-            trend={data.fullDayWindDirectionTrend}
+            trend={view.fullDayWindDirectionTrend}
             lineColorHex="#34d399"
             fillGradientHex="#34d399"
             yDomain={[0, 360]}
@@ -94,7 +136,7 @@ export default function DashboardPage() {
             direction) that make the left column run taller than this one.
             top-24 clears the sticky app header (h-20) with a small gap. */}
         <div className="xl:col-span-4 space-y-8 xl:sticky xl:top-24 xl:self-start">
-          <SensorTriadCard data={data} />
+          <SensorTriadCard data={view} />
           <AnemometerCard extras={extras} />
           <SynopticOutlookCard extras={extras} />
         </div>

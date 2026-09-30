@@ -2,12 +2,6 @@ const STORAGE_KEY = "admin-settings";
 
 export interface AdminSettings {
   mapTheme: "light" | "dark";
-  /** How often stations push telemetry — also read by the header's
-   * SseLatencyBadge so the "…s INT" label reflects the real setting
-   * instead of a hardcoded 60. No admin UI edits this anymore (the
-   * Ingest & Polling Frequency card was removed), so it just sits at
-   * the default below until a real control exists again. */
-  pollingIntervalSec: 30 | 60 | 300;
   /** Max acceptable difference (°C) between the primary MCP9808 air-temp
    * reading and each diagnostic sensor (BMP360, SHT31) before the Live
    * Dashboard's Sensor Agreement panel flags it as degraded. Previously
@@ -22,7 +16,6 @@ export interface AdminSettings {
 
 export const DEFAULT_SETTINGS: AdminSettings = {
   mapTheme: "dark",
-  pollingIntervalSec: 60,
   sensorAgreementToleranceC: 0.8,
   rainGaugeVarianceTolerancePct: 5,
 };

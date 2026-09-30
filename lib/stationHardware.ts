@@ -12,8 +12,9 @@ export interface StationHardwareInfo {
 }
 
 /**
- * Static-ish hardware metadata, same "realistic per-station mock data"
- * pattern as lib/mockStationData.ts — not from a real provisioning
+ * Static-ish hardware metadata (firmware, sensor suite, elevation, gateway).
+ * NOT from the API — no endpoint provides it yet, so this is the one
+ * remaining placeholder dataset in the app. Not from a real provisioning
  * database yet, but distinct and plausible per station rather than
  * copy-pasted placeholder text.
  */

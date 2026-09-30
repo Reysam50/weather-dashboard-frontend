@@ -8,6 +8,7 @@ import ProvisionStationModal from "@/components/map/ProvisionStationModal";
 import EditStationModal from "@/components/map/EditStationModal";
 import CalibrationDrawer from "@/components/map/CalibrationDrawer";
 import { useStationContext } from "@/lib/StationContext";
+import { mapStation } from "@/lib/apiMappers";
 import { ROLE_LABELS } from "@/lib/mockAuth";
 import { useAuth } from "@/lib/AuthContext";
 import { DEFAULT_CALIBRATION, type CalibrationOffsets } from "@/lib/calibration";
@@ -43,22 +44,15 @@ const StationMap = dynamic(() => import("@/components/map/StationMap"), {
  * Inventory table below — matching the redesign's layout, which drops the
  * sidebar entirely.
  *
- * TODO (frontend developer) — per api-specification.md §4:
- * - GET /stations belongs in lib/StationContext.tsx (every screen reads
- *   station data from there), replacing its static mockStations import.
- * - Calibration offsets and the Ping action have no backing endpoint in
- *   the spec yet — both stay local-only/simulated (see
- *   CalibrationDrawer.tsx and StationInspectPod.tsx's handlePing) until
- *   one exists.
- *
- * handleSaveStation and handleSaveEditedStation below DO call the real
- * POST /stations and PATCH /stations/{id} already (fall back to a
- * local-only update if there's no backend to answer it yet, same pattern
- * as the rest of this app).
+ * Stations come from StationContext (GET /stations); Provision/Edit call
+ * POST /stations and PATCH /stations/{id} and only update the map once the
+ * server confirms — a failed save shows an error and changes nothing.
+ * Calibration offsets have no backing endpoint in the spec yet, so they
+ * remain local to this session (see CalibrationDrawer.tsx).
  */
 export default function StationsPage() {
   const { user } = useAuth();
-  const { stations, setStations, selectedStationId, setSelectedStationId } = useStationContext();
+  const { stations, setStations, refetch: refetchStations, selectedStationId, setSelectedStationId } = useStationContext();
 
   const canManage = user.role === "technical_team";
 
@@ -147,17 +141,9 @@ export default function StationsPage() {
     setSaveStationError(null);
     try {
       // POST /stations (Technical Team only, api-specification.md §4).
-      // Request/response use snake_case; Station uses camelCase, hence
-      // the mapping both ways.
-      const created = await apiFetch<{
-        id: string;
-        name: string;
-        latitude: number;
-        longitude: number;
-        particle_device_id: string;
-        status: Station["status"];
-        last_seen_at: string | null;
-      }>("/stations", {
+      // Request/response use snake_case; Station uses camelCase — mapStation
+      // does the conversion on the way back.
+      const created = await apiFetch<Parameters<typeof mapStation>[0]>("/stations", {
         method: "POST",
         body: JSON.stringify({
           name: newStation.name,
@@ -166,38 +152,21 @@ export default function StationsPage() {
           particle_device_id: newStation.particleDeviceId,
         }),
       });
-      const station: Station = {
-        id: created.id,
-        name: created.name,
-        latitude: created.latitude,
-        longitude: created.longitude,
-        particleDeviceId: created.particle_device_id,
-        status: created.status,
-        lastSeenAt: created.last_seen_at,
-      };
+      const station = mapStation(created);
       setStations((prev) => [...prev, station]);
       setSelectedStationId(station.id);
       setIsProvisioning(false);
       setPendingCoords(null);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        setSaveStationError("That Particle device ID is already paired to another station.");
-        return;
-      }
-      // No backend reachable yet — fall back to a local-only station so
-      // the flow stays testable end-to-end, same pattern as everywhere
-      // else in this app that has a real endpoint to call but no
-      // backend to answer it yet.
-      const station: Station = {
-        id: crypto.randomUUID(),
-        status: "offline",
-        lastSeenAt: null,
-        ...newStation,
-      };
-      setStations((prev) => [...prev, station]);
-      setSelectedStationId(station.id);
-      setIsProvisioning(false);
-      setPendingCoords(null);
+      // Nothing is added locally on failure — the map only ever shows
+      // stations the server actually has.
+      setSaveStationError(
+        err instanceof ApiError && err.status === 409
+          ? "That Particle device ID is already paired to another station."
+          : err instanceof ApiError
+          ? err.message
+          : "Couldn't reach the server to save this station. Please try again."
+      );
     } finally {
       setIsSavingStation(false);
     }
@@ -213,15 +182,7 @@ export default function StationsPage() {
       // PATCH /stations/{id} (Technical Team only, api-specification.md §4)
       // — accepts any subset of these fields; we always send all four
       // since the form always has current values for each.
-      const updated = await apiFetch<{
-        id: string;
-        name: string;
-        latitude: number;
-        longitude: number;
-        particle_device_id: string;
-        status: Station["status"];
-        last_seen_at: string | null;
-      }>(`/stations/${id}`, {
+      const updated = await apiFetch<Parameters<typeof mapStation>[0]>(`/stations/${id}`, {
         method: "PATCH",
         body: JSON.stringify({
           name: updates.name,
@@ -230,34 +191,18 @@ export default function StationsPage() {
           particle_device_id: updates.particleDeviceId,
         }),
       });
-      setStations((prev) =>
-        prev.map((s) =>
-          s.id === id
-            ? {
-                ...s,
-                name: updated.name,
-                latitude: updated.latitude,
-                longitude: updated.longitude,
-                particleDeviceId: updated.particle_device_id,
-                status: updated.status,
-                lastSeenAt: updated.last_seen_at,
-              }
-            : s
-        )
-      );
+      const station = mapStation(updated);
+      setStations((prev) => prev.map((s) => (s.id === id ? station : s)));
       setEditingStation(null);
       setEditPendingCoords(null);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        setSaveEditError("That Particle device ID is already paired to another station.");
-        return;
-      }
-      // No backend reachable yet — apply the edit locally so the flow
-      // stays testable end-to-end, same fallback pattern as
-      // handleSaveStation above.
-      setStations((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
-      setEditingStation(null);
-      setEditPendingCoords(null);
+      setSaveEditError(
+        err instanceof ApiError && err.status === 409
+          ? "That Particle device ID is already paired to another station."
+          : err instanceof ApiError
+          ? err.message
+          : "Couldn't reach the server to save these changes. Please try again."
+      );
     } finally {
       setIsSavingEdit(false);
     }
@@ -268,11 +213,9 @@ export default function StationsPage() {
   }
 
   function handleSyncFleet() {
-    // Simulates a fresh fleet sync pass — real implementation would refetch
-    // from the backend instead of just bumping local timestamps.
-    setStations((prev) =>
-      prev.map((s) => (s.status === "online" ? { ...s, lastSeenAt: new Date().toISOString() } : s))
-    );
+    // Re-fetches the station list (GET /stations) so status/last-seen
+    // reflect what the server currently knows.
+    refetchStations();
   }
 
   function handleExportCsv() {

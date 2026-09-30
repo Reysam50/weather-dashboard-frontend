@@ -1,7 +1,6 @@
 "use client";
 
 import type { Station } from "@/lib/types";
-import { MOCK_STATION_DATA } from "@/lib/mockStationData";
 import { getStationHardware } from "@/lib/stationHardware";
 import { formatTimeAgoPrecise } from "@/lib/formatTimeAgo";
 import { formatOfflineDuration } from "@/lib/compareData";
@@ -10,17 +9,21 @@ import { useHydrated } from "@/lib/useHydrated";
 export default function StationSummaryCards({
   stations,
   colors,
+  latestTemp,
   onRemove,
 }: {
   stations: Station[];
   colors: Record<string, string>;
+  /** stationId -> most recent air temp from the fetched telemetry, or
+   * null/absent if that station has reported none. */
+  latestTemp: Record<string, number | null>;
   onRemove: (id: string) => void;
 }) {
   const hydrated = useHydrated();
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
       {stations.map((station) => {
-        const data = MOCK_STATION_DATA[station.id];
+        const temp = latestTemp[station.id] ?? null;
         const hw = getStationHardware(station.id);
         const color = colors[station.id];
         const offline = station.status === "offline";
@@ -69,17 +72,17 @@ export default function StationSummaryCards({
             <div className="grid grid-cols-2 gap-3 items-end pt-1 font-mono">
               <div>
                 <div className="text-[10px] text-on-surface-variant uppercase">
-                  {offline ? "Model Fallback" : "Current Temp"}
+                  {offline ? "Last Known Temp" : "Current Temp"}
                 </div>
                 <div className="flex items-baseline gap-1">
                   <span
                     className="text-3xl font-bold tabular-nums"
                     style={{ color: offline ? "#64748b" : color }}
                   >
-                    {offline ? (data?.current.airTemp ?? "—") : data?.current.airTemp ?? "—"}
+                    {temp ?? "—"}
                   </span>
                   <span className={`text-xs ${offline ? "text-slate-500" : "text-on-surface-variant"}`}>
-                    °C{offline ? " (est)" : ""}
+                    °C{offline && temp !== null ? " (last)" : ""}
                   </span>
                 </div>
               </div>
@@ -88,7 +91,7 @@ export default function StationSummaryCards({
                   <>
                     <span className="text-[10px] text-error flex items-center gap-1">
                       <span className="material-symbols-outlined text-[12px]">warning</span>
-                      Synthetic fallback active
+                      No telemetry received
                     </span>
                     <span className="text-[10px] text-on-surface-variant">
                       Last: {hydrated ? formatTimeAgoPrecise(station.lastSeenAt) : "…"}

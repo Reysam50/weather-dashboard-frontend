@@ -1,40 +1,53 @@
 /**
- * Shape of one telemetry reading from a station, matching the payload
- * suggested in 03-hardware-integration/hardware-team-clarification-request.md.
+ * Shape of one telemetry reading from a station, matching the confirmed
+ * hardware payload (03-hardware-integration/hardware-team-clarification-request.md,
+ * api-specification.md §5).
  *
- * NOTE: this is still pending hardware-team confirmation — if the field
- * names or shape change once they reply, this is the one place to update.
- * Every widget should import this type rather than re-declaring its own
- * field names, so a payload change only means editing this file.
+ * Every sensor field is nullable: a reading still arrives on schedule even
+ * when one sensor is degraded or disconnected (the station itself is
+ * online, one channel isn't) — `null` means "this sensor reported nothing
+ * this cycle," and is what drives each dashboard card's own offline state
+ * (see components/layout/OfflineNotice.tsx), independent of whether the
+ * station as a whole is reachable at all.
+ *
+ * windSpeedKmh/windDirectionDeg: confirmed by the hardware team as a
+ * forthcoming field (not in the payload yet as of this writing) — wired up
+ * end-to-end already so no frontend change is needed once it starts
+ * arriving; until then it will simply always read `null` from a real
+ * backend, which renders correctly as "sensor offline" on every card that
+ * shows it.
  */
 export interface StationReading {
   timestamp: string; // ISO 8601, e.g. "2026-08-19T11:30:00Z"
 
-  airTemp: number;
-  bmpTemp: number;
-  shtTemp: number;
+  airTemp: number | null;
+  bmpTemp: number | null;
+  shtTemp: number | null;
 
-  pressure: number; // hPa
-  humidity: number; // %
+  pressure: number | null; // hPa
+  humidity: number | null; // %
 
-  maxTemp24h: number;
-  minTemp24h: number;
+  maxTemp24h: number | null;
+  minTemp24h: number | null;
 
-  minTips1: number;
-  minRain1_mm: number;
-  minTips2: number;
-  minRain2_mm: number;
-  minAvgRain_mm: number;
+  minTips1: number | null;
+  minRain1_mm: number | null;
+  minTips2: number | null;
+  minRain2_mm: number | null;
+  minAvgRain_mm: number | null;
 
-  yestRain1_mm: number;
-  yestRain2_mm: number;
-  yestAvgRain_mm: number;
+  yestRain1_mm: number | null;
+  yestRain2_mm: number | null;
+  yestAvgRain_mm: number | null;
 
-  rollTips1: number;
-  rollRain1_mm: number;
-  rollTips2: number;
-  rollRain2_mm: number;
-  rollAvgRain_mm: number;
+  rollTips1: number | null;
+  rollRain1_mm: number | null;
+  rollTips2: number | null;
+  rollRain2_mm: number | null;
+  rollAvgRain_mm: number | null;
+
+  windSpeedKmh: number | null;
+  windDirectionDeg: number | null;
 }
 
 /**
@@ -70,7 +83,9 @@ export interface ReportSchedule {
 
 export interface GeneratedReport {
   id: string;
-  scheduleId: string;
+  /** null for a one-off manual/Quick Export generation not tied to any
+   * recurring schedule (api-specification.md §6). */
+  scheduleId: string | null;
   stationId: string | null;
   generatedAt: string;
   format: ReportFormat;
@@ -84,6 +99,15 @@ export interface GeneratedReport {
  * specific ones has no effect (per stakeholder-analysis.md's permission
  * table) and the admin UI hides that control for those roles.
  */
+/**
+ * Shared status for every data-fetching hook in lib/ — "offline" is
+ * specifically "we successfully reached the API but it has nothing for us
+ * (e.g. a station that's never reported)", distinct from "error" (the
+ * request itself failed — network down, 5xx, etc.), so the UI can tell
+ * "this station has no data" apart from "something is actually broken."
+ */
+export type FetchStatus = "loading" | "ready" | "offline" | "error";
+
 export interface User {
   id: string;
   name: string;

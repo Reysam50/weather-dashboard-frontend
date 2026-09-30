@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { StationMockData } from "@/lib/mockStationData";
+import type { StationView } from "@/lib/deriveStationView";
 import type { LiveTelemetryExtras } from "@/lib/liveTelemetryData";
 import { scaleSeries, smoothLinePath } from "@/lib/chartPaths";
 import { useAdminSettings } from "@/lib/AdminSettingsContext";
+import { OfflineCardBody } from "@/components/layout/OfflineCardBody";
 
 const VIEW_W = 600;
 const VIEW_H = 200;
@@ -24,7 +25,7 @@ export default function DualGaugeRainfallCard({
   data,
   extras,
 }: {
-  data: StationMockData;
+  data: StationView;
   extras: LiveTelemetryExtras;
 }) {
   const { settings } = useAdminSettings();
@@ -49,7 +50,7 @@ export default function DualGaugeRainfallCard({
 
   const latestEvent = gauge1[gauge1.length - 1] ?? 0;
   const rollingAccum = data.current.rollAvgRain_mm;
-  const varianceOk = extras.rainVariancePct <= settings.rainGaugeVarianceTolerancePct;
+  const varianceOk = extras.rainVariancePct !== null && extras.rainVariancePct <= settings.rainGaugeVarianceTolerancePct;
 
   // Thin the x-axis labels down to ~MAX_TICKS so the minute view (60
   // points) doesn't collide; hourly (8) and daily (6) just show all of them.
@@ -99,6 +100,13 @@ export default function DualGaugeRainfallCard({
         </div>
       </div>
 
+      {n === 0 ? (
+        <OfflineCardBody
+          label="Rain Gauges Offline"
+          detail="No rain readings available yet for this station."
+        />
+      ) : (
+      <>
       <div className="relative w-full h-64 my-5 rounded-xl bg-[#080c14] border border-border-line p-4 overflow-hidden">
         <svg className="w-full h-full" preserveAspectRatio="none" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}>
           <line stroke="#1c263c" strokeWidth={1} x1={0} x2={VIEW_W} y1={50} y2={50} />
@@ -152,19 +160,21 @@ export default function DualGaugeRainfallCard({
         </div>
         <div className="p-3 rounded-xl bg-[#090d16] border border-border-line text-center">
           <span className="text-slate-500 block text-[11px] uppercase">Rolling Accum</span>
-          <span className="text-cyan-300 font-bold text-sm">{rollingAccum} mm</span>
+          <span className="text-cyan-300 font-bold text-sm">{rollingAccum ?? "—"} mm</span>
         </div>
         <div className="p-3 rounded-xl bg-[#090d16] border border-border-line text-center">
           <span className="text-slate-500 block text-[11px] uppercase">Weekly Total</span>
-          <span className="text-white font-bold text-sm">{extras.rainWeeklyTotalMm} mm</span>
+          <span className="text-white font-bold text-sm">{extras.rainWeeklyTotalMm ?? "—"} mm</span>
         </div>
         <div className="p-3 rounded-xl bg-[#090d16] border border-border-line text-center">
           <span className="text-slate-500 block text-[11px] uppercase">Gauge Variance</span>
           <span className={`font-bold text-sm ${varianceOk ? "text-emerald-400" : "text-rose-400"}`}>
-            ±{extras.rainVariancePct}% ({varianceOk ? "Tolerable" : "Check Sensors"})
+            {extras.rainVariancePct !== null ? `±${extras.rainVariancePct}%` : "—"} ({varianceOk ? "Tolerable" : "Check Sensors"})
           </span>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

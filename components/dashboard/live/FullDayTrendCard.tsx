@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import type { TrendPoint } from "@/components/widgets/TemperatureTrendChart";
 import { scaleSeries, smoothLinePath, areaPath } from "@/lib/chartPaths";
+import { OfflineCardBody } from "@/components/layout/OfflineCardBody";
 
 const RANGE_BUTTONS = [
   { label: "24H", hours: 24 },
@@ -209,6 +210,13 @@ export default function FullDayTrendCard({
         </div>
       </div>
 
+      {trend.length === 0 ? (
+        <OfflineCardBody
+          label={`${sensorLabel} Offline`}
+          detail="No readings available yet for this sensor."
+        />
+      ) : (
+      <>
       {bands && bands.length > 0 && (
         <div className="flex flex-wrap items-center gap-4 lg:gap-6 py-3 px-4 rounded-xl bg-[#090d16] border border-border-line my-5 font-mono text-xs">
           <span className="text-slate-500 font-medium">BANDS:</span>
@@ -362,6 +370,8 @@ export default function FullDayTrendCard({
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

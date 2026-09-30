@@ -46,7 +46,7 @@ export default function SynopticOutlookCard({ extras }: { extras: LiveTelemetryE
           <div>
             <span className="text-white font-bold block">PREVAILING WIND</span>
             <span className="text-slate-500 text-[11px]">
-              {extras.wind.speedKmh} km/h {extras.wind.compass}
+              {extras.wind.speedKmh !== null ? `${extras.wind.speedKmh} km/h ${extras.wind.compass}` : "Wind sensor offline"}
             </span>
           </div>
         </div>

@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import type { Station } from "@/lib/types";
-import { MOCK_STATION_DATA } from "@/lib/mockStationData";
-import { getLiveTelemetryExtras } from "@/lib/liveTelemetryData";
+import { useStationSnapshot } from "@/lib/useStationSnapshot";
+import { OfflineCardBody } from "@/components/layout/OfflineCardBody";
 import { formatTimeAgoPrecise } from "@/lib/formatTimeAgo";
 import { useHydrated } from "@/lib/useHydrated";
 import { scaleSeries, smoothLinePath, areaPath } from "@/lib/chartPaths";
@@ -18,30 +17,17 @@ export default function StationInspectPod({
   onCalibrate: (station: Station) => void;
   onEdit?: (station: Station) => void;
 }) {
-  const [pingState, setPingState] = useState<"idle" | "pinging" | "done">("idle");
-  const [pingMs, setPingMs] = useState(0);
   const hydrated = useHydrated();
-
-  const data = MOCK_STATION_DATA[station.id];
+  const { latest, recent, loading } = useStationSnapshot(station.id);
   const isOffline = station.status === "offline";
 
-  // Last ~12 hours of the day's temperature curve, for the small sparkline.
-  const recentTrend = data ? data.fullDayTrend.slice(-12).map((p) => p.y) : [];
+  // Last ~12 hours of hourly air temp, for the small sparkline.
+  const recentTrend = recent.map((r) => r.airTemp).filter((v): v is number => v !== null);
   const points = scaleSeries(recentTrend, 240, 40, 3);
   const line = smoothLinePath(points);
   const fill = areaPath(line, points, 40);
   const min = recentTrend.length ? Math.min(...recentTrend) : 0;
   const max = recentTrend.length ? Math.max(...recentTrend) : 0;
-
-  function handlePing() {
-    setPingState("pinging");
-    const latency = 22 + Math.round(Math.random() * 40);
-    setTimeout(() => {
-      setPingMs(latency);
-      setPingState("done");
-      setTimeout(() => setPingState("idle"), 3000);
-    }, 700);
-  }
 
   return (
     <div className="absolute top-4 right-4 w-80 max-w-[calc(100vw-2rem)] bg-card-bg/95 backdrop-blur-xl rounded-xl p-4 shadow-2xl z-[1000] border border-border-hover">
@@ -91,27 +77,31 @@ export default function StationInspectPod({
         </div>
       </div>
 
-      {data && (
+      {loading ? (
+        <div className="py-6 text-center font-mono text-[11px] text-on-surface-variant animate-pulse">Loading telemetry…</div>
+      ) : !latest ? (
+        <OfflineCardBody label="No Telemetry" detail="This station hasn't reported a reading." />
+      ) : (
         <>
           <div className="grid grid-cols-3 gap-1.5 py-1.5 bg-card-bg-subtle rounded-lg p-2 border border-border-line text-center">
             <div>
               <span className="text-[10px] text-on-surface-variant block">AIR TEMP</span>
               <span className="font-mono text-lg font-bold text-primary-container">
-                {data.current.airTemp}
+                {latest.airTemp ?? "—"}
                 <span className="text-xs font-normal">°C</span>
               </span>
             </div>
             <div>
               <span className="text-[10px] text-on-surface-variant block">BARO PRESS</span>
               <span className="font-mono text-lg font-bold text-white">
-                {data.current.pressure}
+                {latest.pressure ?? "—"}
               </span>
               <span className="text-[10px] text-on-surface-variant block">hPa</span>
             </div>
             <div>
               <span className="text-[10px] text-on-surface-variant block">RAIN (ROLL)</span>
               <span className="font-mono text-lg font-bold text-primary-container">
-                {data.current.rollAvgRain_mm}
+                {latest.rollAvgRain_mm ?? "—"}
                 <span className="text-xs font-normal">mm</span>
               </span>
             </div>
@@ -161,26 +151,7 @@ export default function StationInspectPod({
         >
           <span className="material-symbols-outlined text-[18px]">tune</span>
         </button>
-        <button
-          type="button"
-          onClick={handlePing}
-          title="Ping hardware core"
-          className="p-1.5 rounded-lg bg-card-bg-subtle text-on-surface-variant hover:text-primary-container transition-colors border border-border-line relative"
-        >
-          <span
-            className={`material-symbols-outlined text-[18px] ${
-              pingState === "pinging" ? "animate-pulse" : ""
-            }`}
-          >
-            cell_tower
-          </span>
-        </button>
       </div>
-      {pingState !== "idle" && (
-        <p className="mt-1.5 text-right font-mono text-[10px] text-primary-container">
-          {pingState === "pinging" ? "Pinging…" : `Round-trip: ${pingMs}ms`}
-        </p>
-      )}
     </div>
   );
 }

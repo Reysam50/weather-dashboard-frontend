@@ -1,55 +1,6 @@
-import type { StationMockData } from "./mockStationData";
-
-export interface ComparisonMetricConfig {
-  key: string;
-  label: string;
-  unit: string;
-  color: string; // hex, used for this metric's line/value color across the UI
-  getCurrent: (data: StationMockData) => number;
-  getHistory: (data: StationMockData) => number[];
-}
-
-/**
- * Every metric the comparison view can plot/tabulate, plus how to pull its
- * current value and history out of a station's mock data. Adding a new
- * comparable metric later is just adding an entry here — ComparisonChart
- * and ComparisonTable both read from this config instead of having their
- * own hardcoded field lists.
- */
-export const COMPARISON_METRICS: ComparisonMetricConfig[] = [
-  {
-    key: "temperature",
-    label: "Air Temperature",
-    unit: "°C",
-    color: "#f59e0b",
-    getCurrent: (d) => d.current.airTemp,
-    getHistory: (d) => d.tempHistory,
-  },
-  {
-    key: "humidity",
-    label: "Humidity",
-    unit: "%",
-    color: "#06b6d4",
-    getCurrent: (d) => d.current.humidity,
-    getHistory: (d) => d.humidityHistory,
-  },
-  {
-    key: "pressure",
-    label: "Pressure",
-    unit: "hPa",
-    color: "#3b82f6",
-    getCurrent: (d) => d.current.pressure,
-    getHistory: (d) => d.pressureHistory,
-  },
-  {
-    key: "rainfall",
-    label: "Rainfall (rolling avg)",
-    unit: "mm",
-    color: "#6366f1",
-    getCurrent: (d) => d.current.rollAvgRain_mm,
-    getHistory: (d) => d.rainfallHistory,
-  },
-];
+// High/low/average helper used by the Compare screen's analytics matrix.
+// (This file used to also hold a metric-picker config, COMPARISON_METRICS,
+// which nothing rendered anymore once the old widget catalog was removed.)
 
 export interface MetricStats {
   high: number | null;

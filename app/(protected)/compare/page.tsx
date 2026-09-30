@@ -1,16 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStationContext } from "@/lib/StationContext";
 import { useHydrated } from "@/lib/useHydrated";
-import { MOCK_STATION_DATA } from "@/lib/mockStationData";
+import { useCompareData } from "@/lib/useCompareData";
 import { getStationHardware } from "@/lib/stationHardware";
 import {
   assignStationColors,
   buildFindings,
   buildMatrixRows,
   buildDailyAggregate,
+  fieldSeries,
 } from "@/lib/compareData";
+import CompareLoading from "./loading";
 import StationSummaryCards from "@/components/compare/StationSummaryCards";
 import FindingsRibbon from "@/components/compare/FindingsRibbon";
 import MultiStationTrendChart from "@/components/compare/MultiStationTrendChart";
@@ -25,23 +27,16 @@ type RangeTab = "today" | "7d" | "30d" | "custom";
  * exist as a real route before (the old dashboard had an inline "Compare
  * Stations" toggle mode, removed when the Live Telemetry screen became
  * the fixed redesign layout) — components/dashboard/CompareStationsPanel,
- * CompareMetricsPanel, ComparisonChart, and ComparisonTable were all
- * orphaned by that change and aren't reused here (this screen's charts
- * use the same custom-SVG approach as the Live Telemetry screen instead
- * of their react-apexcharts one, for visual consistency across screens
- * now that both exist). Those 4 files — and the entire components/widgets/
- * folder from the old drag-and-drop widget catalog era, except two type
- * exports lib/mockStationData.ts still imports — are confirmed unused
- * anywhere in the app; flagging in case you want them cleaned up in a
- * separate pass.
+ * CompareMetricsPanel, ComparisonChart, and ComparisonTable were orphaned
+ * by that change and have since been removed; this screen's charts use the
+ * same custom-SVG approach as the Live Telemetry screen.
  *
- * The "Today 24h" tab uses real per-station hourly mock data throughout.
- * "Past 7 Days"/"Past 30 Days"/"Custom" only re-scope the hero
- * temperature chart to a synthetic daily aggregate (lib/compareData.ts's
- * buildDailyAggregate) — the secondary charts and analytics matrix stay
- * on "Today" hourly detail in every tab, labeled as such, rather than
- * pretending humidity/pressure/rain/wind have a real multi-day history
- * they don't.
+ * All data comes from GET /stations/compare via lib/useCompareData.ts:
+ * the last 24h at hourly resolution for every chart and the analytics
+ * matrix, plus daily-resolution rows for the hero temperature chart when a
+ * multi-day tab is selected. "Past 7 Days"/"Past 30 Days"/"Custom" only
+ * re-scope that hero chart — the secondary charts and matrix stay on
+ * "Today" hourly detail in every tab, labeled as such.
  */
 export default function ComparePage() {
   const { stations } = useStationContext();
@@ -49,18 +44,42 @@ export default function ComparePage() {
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
     stations.slice(0, MAX_COMPARE_STATIONS).map((s) => s.id)
   );
+  // Stations arrive asynchronously from GET /stations, so the initial
+  // default selection above is usually empty — fill it in once they load,
+  // but only if the user hasn't picked anything themselves yet.
+  useEffect(() => {
+    setSelectedIds((prev) => (prev.length === 0 ? stations.slice(0, MAX_COMPARE_STATIONS).map((s) => s.id) : prev));
+  }, [stations]);
   const [rangeTab, setRangeTab] = useState<RangeTab>("today");
   const [customDays, setCustomDays] = useState(14);
   const [isAdding, setIsAdding] = useState(false);
 
-  const selectedStations = stations.filter((s) => selectedIds.includes(s.id));
+  const selectedStations = useMemo(
+    () => stations.filter((s) => selectedIds.includes(s.id)),
+    [stations, selectedIds]
+  );
   const colors = useMemo(() => assignStationColors(selectedStations), [selectedStations]);
   const hydrated = useHydrated();
+
+  const heroDays = rangeTab === "7d" ? 7 : rangeTab === "30d" ? 30 : rangeTab === "custom" ? customDays : null;
+  const { hourly, daily, status, errorMessage, refetch } = useCompareData(selectedIds, heroDays);
+
   // buildFindings computes offline-duration text from Date.now(), which
   // would otherwise mismatch between server render and client hydration
   // (see lib/useHydrated.ts) — hold off until mounted.
-  const findings = useMemo(() => (hydrated ? buildFindings(selectedStations) : []), [selectedStations, hydrated]);
-  const matrixRows = useMemo(() => buildMatrixRows(selectedStations), [selectedStations]);
+  const findings = useMemo(
+    () => (hydrated ? buildFindings(selectedStations, hourly) : []),
+    [selectedStations, hourly, hydrated]
+  );
+  const matrixRows = useMemo(() => buildMatrixRows(selectedStations, hourly), [selectedStations, hourly]);
+  const latestTemp = useMemo(() => {
+    const out: Record<string, number | null> = {};
+    for (const s of selectedStations) {
+      const temps = fieldSeries(hourly[s.id], "airTemp");
+      out[s.id] = temps.length ? temps[temps.length - 1] : null;
+    }
+    return out;
+  }, [selectedStations, hourly]);
 
   const onlineStations = selectedStations.filter((s) => s.status === "online");
   const offlineStations = selectedStations.filter((s) => s.status === "offline");
@@ -72,53 +91,52 @@ export default function ComparePage() {
   // ever covered 8 morning hours, regardless of what the "Today 24h" tab
   // label claimed.
   const fullDayHourLabels = primary
-    ? (MOCK_STATION_DATA[primary.id]?.fullDayTrend ?? []).map((p) =>
-        new Date(p.x).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
+    ? (hourly[primary.id] ?? []).map((r) =>
+        new Date(r.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
       )
     : [];
-
-  const heroDays = rangeTab === "7d" ? 7 : rangeTab === "30d" ? 30 : rangeTab === "custom" ? customDays : null;
 
   const heroSeries = useMemo(() => {
     if (heroDays) {
       return selectedStations.map((s) => ({
         station: s,
         color: colors[s.id],
-        values: buildDailyAggregate(s.id, heroDays).avg,
+        values: buildDailyAggregate(daily[s.id]).avg,
       }));
     }
-    return selectedStations.map((s) => {
-      const data = MOCK_STATION_DATA[s.id];
-      return { station: s, color: colors[s.id], values: data?.fullDayTrend.map((p) => p.y) ?? [] };
-    });
-  }, [selectedStations, colors, heroDays]);
+    return selectedStations.map((s) => ({
+      station: s,
+      color: colors[s.id],
+      values: fieldSeries(hourly[s.id], "airTemp"),
+    }));
+  }, [selectedStations, colors, heroDays, hourly, daily]);
 
-  const heroLabels = heroDays ? buildDailyAggregate(selectedStations[0]?.id ?? "1", heroDays).labels : fullDayHourLabels;
+  const heroLabels = heroDays ? buildDailyAggregate(daily[selectedStations[0]?.id ?? ""]).labels : fullDayHourLabels;
 
   const humiditySeries = onlineStations.slice(0, 2).map((s) => ({
     station: s,
     color: colors[s.id],
-    values: MOCK_STATION_DATA[s.id]?.fullDayHumidityTrend.map((p) => p.y) ?? [],
+    values: fieldSeries(hourly[s.id], "humidity"),
   }));
   const pressureSeries = onlineStations.slice(0, 2).map((s) => ({
     station: s,
     color: colors[s.id],
-    values: MOCK_STATION_DATA[s.id]?.fullDayPressureTrend.map((p) => p.y) ?? [],
+    values: fieldSeries(hourly[s.id], "pressure"),
   }));
   const rainSeries = onlineStations.slice(0, 2).map((s) => ({
     station: s,
     color: colors[s.id],
-    values: MOCK_STATION_DATA[s.id]?.fullDayRainTrend.map((p) => p.y) ?? [],
+    values: fieldSeries(hourly[s.id], "rollAvgRain_mm"),
   }));
   const windSpeedSeries = onlineStations.slice(0, 2).map((s) => ({
     station: s,
     color: colors[s.id],
-    values: MOCK_STATION_DATA[s.id]?.fullDayWindSpeedTrend.map((p) => p.y) ?? [],
+    values: fieldSeries(hourly[s.id], "windSpeedKmh"),
   }));
   const windDirectionSeries = onlineStations.slice(0, 2).map((s) => ({
     station: s,
     color: colors[s.id],
-    values: MOCK_STATION_DATA[s.id]?.fullDayWindDirectionTrend.map((p) => p.y) ?? [],
+    values: fieldSeries(hourly[s.id], "windDirectionDeg"),
   }));
 
   function avgOf(values: number[]) {
@@ -275,7 +293,12 @@ export default function ComparePage() {
         + Add Station
       </button>
 
-      <StationSummaryCards stations={selectedStations} colors={colors} onRemove={toggleStation} />
+      <StationSummaryCards
+        stations={selectedStations}
+        colors={colors}
+        latestTemp={latestTemp}
+        onRemove={toggleStation}
+      />
 
       <FindingsRibbon findings={findings} />
 
@@ -283,13 +306,28 @@ export default function ComparePage() {
         <div className="bg-card-bg rounded-2xl border border-border-line p-10 text-center text-on-surface-variant">
           No stations selected — add one above to start comparing.
         </div>
+      ) : status === "loading" ? (
+        <CompareLoading />
+      ) : status === "error" ? (
+        <div className="bg-card-bg rounded-2xl border border-border-line p-10 text-center space-y-3">
+          <span className="material-symbols-outlined text-[32px] text-rose-400">cloud_off</span>
+          <p className="text-white font-semibold">Couldn&apos;t load comparison data</p>
+          <p className="text-sm text-slate-400">{errorMessage}</p>
+          <button
+            type="button"
+            onClick={refetch}
+            className="px-4 py-2 rounded-lg bg-primary-container text-slate-950 font-bold text-sm hover:bg-primary transition-colors"
+          >
+            Retry
+          </button>
+        </div>
       ) : (
         <>
           <MultiStationTrendChart
             title={`Air Temperature (°C) — Multi-Station Trend${heroDays ? ` (${heroDays}d)` : ""}`}
             subtitle={
               heroDays
-                ? `Synthetic daily aggregate // last ${heroDays} days`
+                ? `Daily average // last ${heroDays} days`
                 : `Continuous synchronized rolling telemetry // ${fullDayHourLabels[0] ?? ""} to ${fullDayHourLabels[fullDayHourLabels.length - 1] ?? ""} CAT (1-hr resolution)`
             }
             series={heroSeries}
