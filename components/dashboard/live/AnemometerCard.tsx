@@ -15,7 +15,7 @@ import { OfflineCardBody } from "@/components/layout/OfflineCardBody";
  * just idles rather than nudging around a fabricated baseline.
  */
 export default function AnemometerCard({ extras }: { extras: LiveTelemetryExtras }) {
-  const { speedKmh: baseSpeed, gustKmh, gustSpreadKmh, directionDeg: baseDeg, bearingStable } = extras.wind;
+  const { speedKmh: baseSpeed, directionDeg: baseDeg, bearingStable } = extras.wind;
   const hasWind = baseSpeed !== null && baseDeg !== null;
 
   const [liveDeg, setLiveDeg] = useState(baseDeg ?? 0);
@@ -134,15 +134,6 @@ export default function AnemometerCard({ extras }: { extras: LiveTelemetryExtras
                   </span>
                   <span className="text-xs text-slate-400">km/h</span>
                 </div>
-              </div>
-              <div>
-                <span className="text-[11px] text-slate-500 uppercase tracking-wider block">Max Sustained Gust</span>
-                <span className="text-lg font-bold text-secondary">
-                  {gustKmh ?? "—"} <span className="text-xs text-slate-400 font-normal">km/h</span>
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-400">
-                GUST SPREAD: <strong className="text-white">{gustSpreadKmh !== null ? `+${gustSpreadKmh}` : "—"} km/h</strong>
               </div>
             </div>
           </div>

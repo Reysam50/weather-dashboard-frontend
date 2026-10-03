@@ -116,8 +116,6 @@ export interface LiveTelemetryExtras {
   pressureStabilityLabel: string;
   wind: {
     speedKmh: number | null;
-    gustKmh: number | null;
-    gustSpreadKmh: number | null;
     directionDeg: number | null;
     compass: string | null;
     bearingStable: boolean;

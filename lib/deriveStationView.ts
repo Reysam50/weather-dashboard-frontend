@@ -223,10 +223,6 @@ export function deriveLiveExtras(params: {
     pressureStabilityLabel: pressureTrend3h === null ? "UNKNOWN" : pressureTrend3h >= 0 ? "STABLE HIGH" : "STABLE LOW",
     wind: {
       speedKmh: latest?.windSpeedKmh ?? null,
-      // No gust field exists in the confirmed hardware payload — never
-      // fabricated as a multiple of speed as a placeholder would. Stays null until/unless the hardware team adds one.
-      gustKmh: null,
-      gustSpreadKmh: null,
       directionDeg,
       compass: directionDeg !== null ? degToCompass(directionDeg) : null,
       bearingStable: true,
