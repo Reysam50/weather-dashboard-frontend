@@ -10,6 +10,12 @@ export interface AuthUser {
   /** Station IDs this user can access. "all" for administrator/technical_team
    * (per api-specification.md §2) — never enumerated as an array for them. */
   stations: string[] | "all";
+  /** True while the user is still on an admin-issued temporary password
+   * (backend `must_change_password`, set on POST /users, cleared on a
+   * successful POST /auth/change-password). While true, the protected
+   * layout shows a blocking "set a new password" screen instead of the app
+   * — see 11-screen-sync/login.md §3. Always false for the dev mock session. */
+  mustChangePassword: boolean;
 }
 
 interface AuthContextValue {

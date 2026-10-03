@@ -10,6 +10,7 @@ import { AdminSettingsProvider } from "@/lib/AdminSettingsContext";
 import { AuthProvider, type AuthUser } from "@/lib/AuthContext";
 import { NotificationsProvider } from "@/lib/NotificationsContext";
 import { getMockSession } from "@/lib/mockSession";
+import ChangePasswordModal from "@/components/auth/ChangePasswordModal";
 import { PAGE_CONTAINER } from "@/lib/layout";
 
 /**
@@ -33,6 +34,16 @@ import { PAGE_CONTAINER } from "@/lib/layout";
  * role/station-scope from lib/AuthContext.tsx's useAuth() instead of the
  * old hardcoded CURRENT_ROLE constant.
  *
+ * First-login forced password change (11-screen-sync/login.md §3): GET
+ * /auth/me now also returns `must_change_password`. While it's true (an
+ * admin just created this account with a temp password), the app shell —
+ * header, nav, and every context provider that would fire API calls — is
+ * NOT rendered at all. Only the non-dismissable ChangePasswordModal is,
+ * until the change succeeds and the flag is dropped locally. This is UX
+ * enforcement only; the backend still accepts requests with the temp
+ * password (it doesn't block other endpoints), which is an accepted
+ * limitation for this phase.
+ *
  * Route gating: /stations (Station Map) and /admin are Administrator and
  * Technical Team only per stakeholder-analysis.md's permission table —
  * a Station Operator landing on either (typed URL, bookmark, stale link)
@@ -45,6 +56,18 @@ import { PAGE_CONTAINER } from "@/lib/layout";
 const RESTRICTED_PATHS = ["/stations", "/admin"];
 
 type AuthState = "checking" | "ready";
+
+/** Shape of GET /auth/me. `must_change_password` is snake_case on the wire
+ * (Django); it's mapped to AuthUser.mustChangePassword below. Optional so
+ * the app still works against a backend that hasn't shipped the field yet
+ * (treated as false). */
+interface MeResponse {
+  id: string;
+  email: string;
+  role: AuthUser["role"];
+  stations: string[] | "all";
+  must_change_password?: boolean;
+}
 
 export default function ProtectedLayout({
   children,
@@ -60,12 +83,16 @@ export default function ProtectedLayout({
   useEffect(() => {
     let cancelled = false;
 
-    apiFetch<{ id: string; email: string; role: AuthUser["role"]; stations: string[] | "all" }>(
-      "/auth/me"
-    )
+    apiFetch<MeResponse>("/auth/me")
       .then((me) => {
         if (cancelled) return;
-        setUser({ id: me.id, email: me.email, role: me.role, stations: me.stations });
+        setUser({
+          id: me.id,
+          email: me.email,
+          role: me.role,
+          stations: me.stations,
+          mustChangePassword: me.must_change_password === true,
+        });
         setIsRealSession(true);
         setAuthState("ready");
       })
@@ -83,7 +110,7 @@ export default function ProtectedLayout({
           router.replace("/login");
           return;
         }
-        setUser(mockSession);
+        setUser({ ...mockSession, mustChangePassword: false });
         setIsRealSession(false);
         setAuthState("ready");
       });
@@ -106,6 +133,15 @@ export default function ProtectedLayout({
       <div className="min-h-screen flex items-center justify-center text-gray-500 text-sm">
         Loading…
       </div>
+    );
+  }
+
+  if (user.mustChangePassword) {
+    return (
+      <ChangePasswordModal
+        forced
+        onClose={() => setUser((u) => (u ? { ...u, mustChangePassword: false } : u))}
+      />
     );
   }
 

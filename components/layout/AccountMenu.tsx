@@ -3,11 +3,10 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
 import { ROLE_LABELS } from "@/lib/mockAuth";
 import { useAuth } from "@/lib/AuthContext";
 import { useStationContext } from "@/lib/StationContext";
-import { clearMockSession } from "@/lib/mockSession";
+import { signOut } from "@/lib/logout";
 import ChangePasswordModal from "@/components/auth/ChangePasswordModal";
 
 function initials(email: string) {
@@ -55,15 +54,10 @@ export default function AccountMenu() {
 
   async function handleLogout() {
     setIsLoggingOut(true);
-    try {
-      await apiFetch("/auth/logout", { method: "POST" });
-    } catch {
-      // No real backend yet, or the request failed — clear the dev mock
-      // session too so a stale one doesn't just log you straight back in.
-      clearMockSession();
-    } finally {
-      router.push("/login");
-    }
+    // signOut() (lib/logout.ts) calls POST /auth/logout and always clears
+    // the dev mock session, whether or not the request succeeded.
+    await signOut();
+    router.push("/login");
   }
 
   return (
