@@ -30,13 +30,9 @@ const ROLE_OPTIONS: { value: User["role"]; label: string }[] = [
  * the user instead (DELETE /users/{id}), and station scope is edited
  * here, via "Edit Permissions", exclusively.)
  *
- * Data-model gap: GET /users' real response shape (api-specification.md
- * §3) is `{id, email, role, stations, created_at}` — no `name` field.
- * This form still collects one (used all over this screen's display —
- * avatars, the roster table, etc.) but nowhere to persist it server-side
- * yet. TODO (backend developer): add a `name` column, or TODO (frontend
- * developer): drop it from lib/types.ts's User and derive a display name
- * from email instead, once that's decided.
+ * `name` is a real server-side field (11-screen-sync/admin.md §2, decided):
+ * it's sent on both POST /users and PATCH /users/{id} (see
+ * app/(protected)/admin/page.tsx) and returned by GET /users.
  *
  * New users need a temporary password per POST /users' request schema
  * ("user changes on first login" — see ChangePasswordModal.tsx for that

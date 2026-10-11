@@ -65,7 +65,7 @@ export interface Station {
   lastSeenAt: string | null;
 }
 
-export type ReportFrequency = "daily" | "weekly" | "monthly" | "custom";
+export type ReportFrequency = "daily" | "weekly" | "monthly";
 export type ReportFormat = "csv" | "xls" | "xlsx" | "pdf";
 
 export interface ReportSchedule {
@@ -74,11 +74,6 @@ export interface ReportSchedule {
   frequency: ReportFrequency;
   format: ReportFormat;
   createdBy: string;
-  /** Only set when frequency is "custom" — a specific run date (YYYY-MM-DD)
-   * and time-of-day (HH:MM, 24h), since "Custom" previously had no way to
-   * actually pick either. */
-  customDate?: string;
-  customTime?: string;
 }
 
 export interface GeneratedReport {

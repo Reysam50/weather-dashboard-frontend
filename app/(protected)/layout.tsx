@@ -7,6 +7,7 @@ import MobileNav from "@/components/layout/MobileNav";
 import { apiFetch, ApiError } from "@/lib/api";
 import { StationProvider } from "@/lib/StationContext";
 import { AdminSettingsProvider } from "@/lib/AdminSettingsContext";
+import NavigationProgress from "@/components/layout/NavigationProgress";
 import { AuthProvider, type AuthUser } from "@/lib/AuthContext";
 import { NotificationsProvider } from "@/lib/NotificationsContext";
 import { getMockSession } from "@/lib/mockSession";
@@ -150,6 +151,9 @@ export default function ProtectedLayout({
       <StationProvider>
         <NotificationsProvider>
           <AdminSettingsProvider>
+            {/* Top progress bar + "Loading…" chip the moment any link is clicked,
+                until the new screen renders — see NavigationProgress.tsx. */}
+            <NavigationProgress />
             {/* AppHeader now carries the primary nav tabs itself (the redesign
                 merges what used to be AppHeader + AppNav into one bar) — see
                 AppHeader.tsx's comment. AppNav.tsx is gone; MobileNav still

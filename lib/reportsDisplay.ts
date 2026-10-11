@@ -14,17 +14,7 @@ export const FORMAT_ICONS: Record<ReportFormat, string> = {
   pdf: "picture_as_pdf",
 };
 
-function formatCustomDateTime(customDate?: string, customTime?: string): string | null {
-  if (!customDate) return null;
-  const iso = customTime ? `${customDate}T${customTime}` : customDate;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}${
-    customTime ? ` @ ${customTime}` : ""
-  }`;
-}
-
-export function recurrenceLabel(schedule: Pick<ReportSchedule, "frequency" | "customDate" | "customTime">): string {
+export function recurrenceLabel(schedule: Pick<ReportSchedule, "frequency">): string {
   switch (schedule.frequency) {
     case "daily":
       return "Daily @ 08:00 UTC";
@@ -32,18 +22,13 @@ export function recurrenceLabel(schedule: Pick<ReportSchedule, "frequency" | "cu
       return "Weekly @ Sun 23:59";
     case "monthly":
       return "Monthly (1st) 00:00";
-    case "custom": {
-      const formatted = formatCustomDateTime(schedule.customDate, schedule.customTime);
-      return formatted ? `Custom — ${formatted}` : "Custom cadence";
-    }
   }
 }
 
 /** Purely a display estimate for "next run" — not backed by a real
  * scheduler yet, so this is derived from the frequency each render
- * rather than stored anywhere (except for "custom", which now has a real
- * stored date/time to compute from). */
-export function nextRunLabel(schedule: Pick<ReportSchedule, "frequency" | "customDate" | "customTime">): string {
+ * rather than stored anywhere. */
+export function nextRunLabel(schedule: Pick<ReportSchedule, "frequency">): string {
   const now = new Date();
   switch (schedule.frequency) {
     case "daily": {
@@ -56,10 +41,6 @@ export function nextRunLabel(schedule: Pick<ReportSchedule, "frequency" | "custo
     case "monthly": {
       const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
       return next.toLocaleDateString(undefined, { day: "2-digit", month: "short" }) + " 00:00";
-    }
-    case "custom": {
-      const formatted = formatCustomDateTime(schedule.customDate, schedule.customTime);
-      return formatted ?? "Not scheduled";
     }
   }
 }

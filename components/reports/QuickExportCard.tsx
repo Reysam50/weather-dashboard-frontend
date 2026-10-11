@@ -18,7 +18,6 @@ const TELEMETRY_CHANNELS = [
   { id: "minAvgRain_mm", label: "minAvgRain_mm" },
   { id: "minRainRaw", label: "minRain1/2 (Raw)" },
   { id: "windVector", label: "Wind Speed & Direction" },
-  { id: "qaFlag", label: "QA Checksum & Flag" },
 ];
 
 const RANGE_PRESETS = [
@@ -45,10 +44,10 @@ function toDateInputValue(d: Date) {
  * support stationId: null for Admin/Technical Team). So this form doesn't
  * offer an "All Stations" option even though ScheduleReportCard does.
  *
- * TODO (frontend developer): the channel checkboxes below add a
- * `channels=` query param the backend doesn't parse yet — harmless
- * (it'll just be ignored and return every column) until that filtering
- * is implemented server-side.
+ * The channel checkboxes send `channels=` (comma-separated subset of the ids
+ * in TELEMETRY_CHANNELS) — backend filtering per 11-screen-sync/reports.md
+ * §3. There is no QA-flag channel: no data source exists for one, so it was
+ * removed rather than exporting a made-up column.
  */
 export default function QuickExportCard({ stations, defaultStationId }: QuickExportCardProps) {
   const [stationId, setStationId] = useState(defaultStationId);
@@ -184,7 +183,7 @@ export default function QuickExportCard({ stations, defaultStationId }: QuickExp
                   type="checkbox"
                   checked={channels.includes(channel.id)}
                   onChange={() => toggleChannel(channel.id)}
-                  className={channel.id === "qaFlag" ? "accent-amber-400" : "accent-cyan-400"}
+                  className="accent-cyan-400"
                 />
                 {channel.label}
               </label>

@@ -14,8 +14,6 @@ interface ScheduleReportCardProps {
     stationId: string | null;
     frequency: ReportFrequency;
     format: ReportFormat;
-    customDate?: string;
-    customTime?: string;
   }) => void;
   onDeleteSchedule: (id: string) => void;
 }
@@ -26,6 +24,9 @@ interface ScheduleReportCardProps {
  * Administrator/Technical Team only; a Station Operator's schedules are
  * always scoped to their one assigned station — enforced here by the page
  * passing allowAllStations=false and a locked defaultStationId for that role.
+ *
+ * Frequencies are Daily / Weekly / Monthly only — "Custom" was removed
+ * (11-screen-sync/reports.md §2) to keep scheduling simple.
  */
 export default function ScheduleReportCard({
   stations,
@@ -38,23 +39,10 @@ export default function ScheduleReportCard({
   const [stationId, setStationId] = useState<string | null>(defaultStationId);
   const [frequency, setFrequency] = useState<ReportFrequency>("daily");
   const [format, setFormat] = useState<ReportFormat>("csv");
-  const [customDate, setCustomDate] = useState("");
-  const [customTime, setCustomTime] = useState("09:00");
-
-  const isCustom = frequency === "custom";
-  const canSubmit = !isCustom || (customDate && customTime);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
-    onCreateSchedule({
-      stationId,
-      frequency,
-      format,
-      ...(isCustom ? { customDate, customTime } : {}),
-    });
-    setCustomDate("");
-    setCustomTime("09:00");
+    onCreateSchedule({ stationId, frequency, format });
   }
 
   function stationName(id: string | null) {
@@ -95,7 +83,6 @@ export default function ScheduleReportCard({
             <option value="daily">Daily at 08:00</option>
             <option value="weekly">Weekly</option>
             <option value="monthly">Monthly</option>
-            <option value="custom">Custom</option>
           </select>
 
           <select
@@ -111,38 +98,12 @@ export default function ScheduleReportCard({
 
           <button
             type="submit"
-            disabled={!canSubmit}
-            className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary-container hover:bg-primary text-slate-950 font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary-container hover:bg-primary text-slate-950 font-bold transition-colors"
           >
             <span className="material-symbols-outlined text-[16px]">add_circle</span>
             Schedule
           </button>
 
-          {isCustom && (
-            <div className="sm:col-span-4 grid grid-cols-2 gap-2 pt-1">
-              <div>
-                <label className="block text-on-surface-variant mb-1">Run Date</label>
-                <input
-                  type="date"
-                  value={customDate}
-                  min={new Date().toISOString().slice(0, 10)}
-                  onChange={(e) => setCustomDate(e.target.value)}
-                  required
-                  className="w-full bg-[#0e1320] border border-border-line rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
-                />
-              </div>
-              <div>
-                <label className="block text-on-surface-variant mb-1">Run Time</label>
-                <input
-                  type="time"
-                  value={customTime}
-                  onChange={(e) => setCustomTime(e.target.value)}
-                  required
-                  className="w-full bg-[#0e1320] border border-border-line rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
-                />
-              </div>
-            </div>
-          )}
         </form>
       </div>
 

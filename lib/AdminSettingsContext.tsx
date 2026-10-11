@@ -3,28 +3,31 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_SETTINGS,
+  fetchRemoteSettings,
   loadAdminSettings,
   saveAdminSettings,
+  saveRemoteSettings,
   type AdminSettings,
 } from "./adminSettings";
 
 /**
- * Previously each screen called loadAdminSettings() once, in its own
- * mount effect — that only reads localStorage as it stood when THAT
- * component happened to mount, so a change made on the Admin screen
- * wouldn't show up on the Station Map (or the header's SSE badge) until
- * you navigated away and back, or hard-refreshed. This context holds one
- * shared, live copy of the settings so every consumer re-renders the
- * instant something changes — no refresh needed.
+ * One shared, live copy of the system settings so every consumer (Station
+ * Map theme, dashboard tolerance panels) re-renders the instant something
+ * changes.
  *
- * Starts at DEFAULT_SETTINGS and syncs from localStorage in an effect
- * (same "avoid SSR/localStorage hydration mismatch" pattern used
- * elsewhere in this app, e.g. LiveClock.tsx) rather than reading
- * localStorage during the initial render.
+ * Source of truth is now the backend (GET/PATCH /settings): on mount we show
+ * the cached copy straight away (avoids an SSR/localStorage hydration
+ * mismatch and a blank flash), then overlay whatever the server returns.
+ * If that GET fails we just keep the cached/default values — a settings
+ * hiccup shouldn't break the dashboard.
+ *
+ * updateSettings() only commits locally AFTER the server accepts the
+ * change, and throws if it doesn't, so the Admin screen can show the error
+ * and keep the draft instead of pretending it was published.
  */
 interface AdminSettingsContextValue {
   settings: AdminSettings;
-  updateSettings: (next: AdminSettings) => void;
+  updateSettings: (next: AdminSettings) => Promise<void>;
 }
 
 const AdminSettingsContext = createContext<AdminSettingsContextValue | null>(null);
@@ -33,12 +36,27 @@ export function AdminSettingsProvider({ children }: { children: React.ReactNode 
   const [settings, setSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
-    setSettings(loadAdminSettings());
+    const cached = loadAdminSettings();
+    setSettings(cached);
+    let cancelled = false;
+    fetchRemoteSettings(cached)
+      .then((remote) => {
+        if (cancelled) return;
+        setSettings(remote);
+        saveAdminSettings(remote);
+      })
+      .catch(() => {
+        // Keep the cached values — see above.
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  function updateSettings(next: AdminSettings) {
-    setSettings(next);
-    saveAdminSettings(next);
+  async function updateSettings(next: AdminSettings) {
+    const saved = await saveRemoteSettings(next); // throws on failure
+    setSettings(saved);
+    saveAdminSettings(saved);
   }
 
   const value = useMemo(() => ({ settings, updateSettings }), [settings]);

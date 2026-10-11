@@ -98,18 +98,16 @@ interface ApiUser {
   role: User["role"];
   stations: string[];
   created_at: string;
-  // Not in api-specification.md's documented User shape — the backend
-  // doesn't track a display name today, only email. Mapped defensively in
-  // case it's added later without a frontend change being needed.
+  /** Real display name (11-screen-sync/admin.md §2). Optional only while the
+   * backend hasn't shipped the column yet — see mapUser. */
   name?: string;
 }
 
-/** api-specification.md §3's User object has no `name` field, only
- * `email` — this derives a readable display name from the email's local
- * part (`jane.banda@…` -> `Jane.banda`) as a stand-in wherever the backend
- * doesn't send one, rather than showing a raw email address in a "Name"
- * column. Worth a real product decision (add a name column server-side?)
- * rather than treating this fallback as the permanent answer. */
+/** Uses the backend's `name` (decided: a real column, admin.md §2). The
+ * email-derived fallback below (`jane.banda@…` -> `Jane banda`) only exists
+ * so the roster isn't blank while the backend hasn't shipped `name` yet —
+ * once `GET /users` returns it, delete `fallbackName` and use `u.name`
+ * directly (and make `name` required in ApiUser). */
 export function mapUser(u: ApiUser): User {
   const fallbackName = u.email.split("@")[0]?.replace(/[._]/g, " ") ?? u.email;
   return {
@@ -126,21 +124,18 @@ interface ApiReportSchedule {
   station_id: string | null;
   frequency: ReportSchedule["frequency"];
   format: ReportSchedule["format"];
-  cron_expression: string | null;
-  run_at: string | null;
   created_by: string;
 }
 
+/** Schedules are Daily/Weekly/Monthly only (11-screen-sync/reports.md §2):
+ * "Custom" (cron_expression / run_at) was dropped, so neither is read here. */
 export function mapReportSchedule(s: ApiReportSchedule): ReportSchedule {
-  const runAt = s.run_at ? new Date(s.run_at) : null;
   return {
     id: s.id,
     stationId: s.station_id,
     frequency: s.frequency,
     format: s.format,
     createdBy: s.created_by,
-    customDate: runAt ? runAt.toISOString().slice(0, 10) : undefined,
-    customTime: runAt ? runAt.toISOString().slice(11, 16) : undefined,
   };
 }
 

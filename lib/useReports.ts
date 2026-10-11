@@ -9,8 +9,6 @@ type ScheduleInput = {
   stationId: string | null;
   frequency: ReportSchedule["frequency"];
   format: ReportSchedule["format"];
-  customDate?: string;
-  customTime?: string;
 };
 
 /**
@@ -55,16 +53,11 @@ export function useReports() {
   const createSchedule = useCallback(async (input: ScheduleInput) => {
     setActionError(null);
     try {
-      const body: Record<string, unknown> = {
+      const body = {
         station_id: input.stationId,
         frequency: input.frequency,
         format: input.format,
       };
-      // One-time custom run: the UI collects a date + time, which the API
-      // takes as a single `run_at` timestamp (api-specification.md §6).
-      if (input.frequency === "custom" && input.customDate && input.customTime) {
-        body.run_at = new Date(`${input.customDate}T${input.customTime}`).toISOString();
-      }
       const created = await apiFetch<Parameters<typeof mapReportSchedule>[0]>("/reports/schedules", {
         method: "POST",
         body: JSON.stringify(body),

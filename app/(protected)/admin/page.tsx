@@ -4,14 +4,12 @@ import { useEffect, useState } from "react";
 import UserTable from "@/components/admin/UserTable";
 import UserForm from "@/components/admin/UserForm";
 import SettingsPanel from "@/components/admin/SettingsPanel";
-import AuditLogTable from "@/components/admin/AuditLogTable";
 import { useStationContext } from "@/lib/StationContext";
 import { mapUser } from "@/lib/apiMappers";
 import AdminLoading from "./loading";
 import type { User } from "@/lib/types";
 import { type AdminSettings } from "@/lib/adminSettings";
 import { useAdminSettings } from "@/lib/AdminSettingsContext";
-import { newAuditEntry, type AuditEntry } from "@/lib/auditLog";
 import { ROLE_LABELS } from "@/lib/mockAuth";
 import { useAuth } from "@/lib/AuthContext";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -29,13 +27,12 @@ import { apiFetch, ApiError } from "@/lib/api";
  * lib/stationWidgetConfig.ts, components/admin/StationWidgetPicker.tsx,
  * and components/dashboard/SortableWidget.tsx — all deleted.
  *
- * System & Map Preferences' basemap/polling settings are genuinely wired
- * (lib/adminSettings.ts, read by the Station Map screen and the header's
- * SSE badge) via a draft/publish model matching the redesign's "pending
- * changes" framing — nothing saves to lib/adminSettings.ts until you hit
- * Publish & Deploy. The Ingest & Polling Frequency and Data Transmission
- * Resilience cards that used to live in that tab were removed (no longer
- * exposed as admin-editable settings) — see components/admin/SettingsPanel.tsx.
+ * System & Map Preferences are saved to the backend (GET/PATCH /settings)
+ * through AdminSettingsContext, using a draft/publish model: nothing is
+ * saved until you hit Publish Changes, and a failed save shows an error and
+ * keeps your draft. The basemap theme is stored as `basemap`; the two
+ * sensor/rain tolerances need their backend columns (see
+ * lib/adminSettings.ts) before they persist server-side.
  *
  * The roster comes from GET /users; handleSaveUser and handleDeleteUser
  * call POST/PATCH/DELETE /users/{id} (api-specification.md §3) and only
@@ -43,13 +40,11 @@ import { apiFetch, ApiError } from "@/lib/api";
  * and changes nothing. Station scope is edited exclusively through "Edit
  * Permissions" (UserForm, PATCH /users/{id}).
  *
- * Not backed by any endpoint yet, so not shown: per-user 2FA status, last
- * activity/IP, and session revoke. The audit log below only lists actions
- * taken during this visit (no audit endpoint yet), and lib/adminSettings.ts
- * persists to localStorage (no /settings endpoint yet).
+ * Not shown, by decision (11-screen-sync/admin.md §3): per-user 2FA status,
+ * last activity/IP, session revoke, and the audit log.
  */
 
-type Tab = "rbac" | "system" | "audit";
+type Tab = "rbac" | "system";
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -86,8 +81,6 @@ export default function AdminPage() {
   const [stationFilter, setStationFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [entries, setEntries] = useState<AuditEntry[]>([]);
-
   // "Saved" settings now live in the shared AdminSettingsContext (so
   // Publish below propagates to the header + Station Map immediately,
   // everywhere, not just to localStorage) — this page only keeps its own
@@ -96,6 +89,7 @@ export default function AdminPage() {
   const { settings: savedSettings, updateSettings } = useAdminSettings();
   const [draftSettings, setDraftSettings] = useState<AdminSettings>(savedSettings);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   useEffect(() => {
     setDraftSettings(savedSettings);
@@ -103,10 +97,6 @@ export default function AdminPage() {
   }, [savedSettings]);
 
   const isDirty = JSON.stringify(draftSettings) !== JSON.stringify(savedSettings);
-
-  function logAction(action: string, target: string, status: AuditEntry["status"] = "success") {
-    setEntries((prev) => [newAuditEntry("you@this-session", action, target, status), ...prev]);
-  }
 
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [saveUserError, setSaveUserError] = useState<string | null>(null);
@@ -117,25 +107,24 @@ export default function AdminPage() {
     const { tempPassword, ...userFields } = input;
     try {
       if (userFields.id) {
-        // PATCH /users/{id} — request/response only document role/stations
-        // in api-specification.md §3, but "all fields optional" per its
-        // own description, so email is included too. `name` has nowhere
-        // to go server-side yet (see UserForm.tsx's docblock) — not sent.
+        // PATCH /users/{id} — all fields optional per api-specification.md
+        // §3; name and email are included alongside role/stations.
         const id = userFields.id;
         await apiFetch(`/users/${id}`, {
           method: "PATCH",
           body: JSON.stringify({
+            name: userFields.name,
             email: userFields.email,
             role: userFields.role,
             stations: userFields.role === "station_operator" ? userFields.stationIds : [],
           }),
         });
         setUsers((prev) => prev.map((u) => (u.id === id ? { ...userFields, id } : u)));
-        logAction("USER_PERMISSIONS_UPDATED", userFields.email);
       } else {
         const created = await apiFetch<{ id: string }>("/users", {
           method: "POST",
           body: JSON.stringify({
+            name: userFields.name,
             email: userFields.email,
             password: tempPassword,
             role: userFields.role,
@@ -143,7 +132,6 @@ export default function AdminPage() {
           }),
         });
         setUsers((prev) => [...prev, { ...userFields, id: created.id }]);
-        logAction("USER_PROVISIONED", userFields.email);
       }
       setEditingUser(null);
       setIsAddingUser(false);
@@ -172,7 +160,6 @@ export default function AdminPage() {
       // DELETE /users/{id} — soft-delete per api-specification.md §3.
       await apiFetch(`/users/${user.id}`, { method: "DELETE" });
       setUsers((prev) => prev.filter((u) => u.id !== user.id));
-      logAction("USER_DELETED", user.email, "blocked");
     } catch (err) {
       setDeleteError(err instanceof ApiError ? err.message : "Couldn't delete that user. Please try again.");
     }
@@ -184,15 +171,27 @@ export default function AdminPage() {
 
   function handleDiscard() {
     setDraftSettings(savedSettings);
+    setPublishError(null);
   }
 
-  function handlePublish() {
+  // PATCH /settings — only commits to the shared context (and so the rest of
+  // the app) once the server accepts it; a failure keeps the draft intact.
+  async function handlePublish() {
     setIsPublishing(true);
-    setTimeout(() => {
-      updateSettings(draftSettings);
-      logAction("CONFIG_UPDATE_SYSTEM_PREFERENCES", "Global Config Registry");
+    setPublishError(null);
+    try {
+      await updateSettings(draftSettings);
+    } catch (err) {
+      setPublishError(
+        err instanceof ApiError && err.status === 403
+          ? "You don't have permission to change system settings."
+          : err instanceof ApiError
+          ? err.message
+          : "Couldn't reach the server to publish these settings. Please try again."
+      );
+    } finally {
       setIsPublishing(false);
-    }, 900);
+    }
   }
 
   const showForm = isAddingUser || editingUser !== null;
@@ -228,7 +227,6 @@ export default function AdminPage() {
   const TABS: { id: Tab; label: string; icon: string; badge?: string }[] = [
     { id: "rbac", label: "User Management & RBAC", icon: "manage_accounts", badge: `${users.length} Active` },
     { id: "system", label: "System & Map Preferences", icon: "tune" },
-    { id: "audit", label: "Audit Logs & Security", icon: "history" },
   ];
 
   return (
@@ -392,8 +390,6 @@ export default function AdminPage() {
 
       {activeTab === "system" && <SettingsPanel draft={draftSettings} onChange={handleSettingsChange} />}
 
-      {activeTab === "audit" && <AuditLogTable entries={entries} />}
-
       {showForm && (
         <UserForm
           stations={stations}
@@ -417,11 +413,15 @@ export default function AdminPage() {
             <span className="font-mono text-xs font-semibold text-white">
               {isDirty ? "Unpublished Changes" : "Configuration Registry Ready"}
             </span>
-            <span className="font-mono text-[11px] text-on-surface-variant">
-              {isDirty
-                ? "Pending changes will be broadcast to all connected station field controllers."
-                : "All settings are saved and in sync."}
-            </span>
+            {publishError ? (
+              <span className="font-mono text-[11px] text-error">{publishError}</span>
+            ) : (
+              <span className="font-mono text-[11px] text-on-surface-variant">
+                {isDirty
+                  ? "Pending changes apply to everyone once published."
+                  : "All settings are saved and in sync."}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -442,7 +442,7 @@ export default function AdminPage() {
             <span className={`material-symbols-outlined text-[18px] ${isPublishing ? "animate-spin" : ""}`}>
               {isPublishing ? "progress_activity" : "save"}
             </span>
-            <span>{isPublishing ? "Broadcasting…" : "Publish & Deploy Changes"}</span>
+            <span>{isPublishing ? "Publishing…" : "Publish Changes"}</span>
           </button>
         </div>
       </div>
