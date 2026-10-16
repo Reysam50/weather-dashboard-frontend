@@ -1,0 +1,23 @@
+Orphaned file scan — 2026-10-16T12:22:04.000Z
+Scanned 106 files under app, components, lib
+Found 16 entry points (page/layout/loading/error/route/middleware files)
+
+17 orphaned file(s) — never imported from any entry point:
+
+  components/admin/AuditLogTable.tsx
+  components/admin/StationScopeModal.tsx
+  components/widgets/AccumulationRateChart.tsx
+  components/widgets/BarChartWidget.tsx
+  components/widgets/BigNumberCard.tsx
+  components/widgets/DirectionScatterChart.tsx
+  components/widgets/GaugeChart.tsx
+  components/widgets/MultiSeriesLineChart.tsx
+  components/widgets/PieChartWidget.tsx
+  components/widgets/RainfallComparisonChart.tsx
+  components/widgets/RawReadingsTable.tsx
+  components/widgets/SensorBandChart.tsx
+  components/widgets/SingleMetricChart.tsx
+  components/widgets/Sparkline.tsx
+  components/widgets/StationSummaryTable.tsx
+  components/widgets/ThresholdRangeChart.tsx
+  lib/auditLog.ts

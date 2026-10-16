@@ -17,9 +17,10 @@ import { apiFetch, ApiError } from "@/lib/api";
  * shouldn't set must_change_password for this — the user picked this
  * password themselves — so on success they just go back to /login.
  *
- * Error handling: any 4xx is shown as "link invalid or expired" (we don't
- * rely on a specific status code since the backend contract doesn't pin one
- * down yet); anything else is a generic retry message.
+ * Error handling: 422 = the backend's password policy refused the new
+ * password (its message is shown); any other 4xx (the backend answers 400
+ * INVALID_TOKEN) is shown as "link invalid or expired"; anything else is a
+ * generic retry message.
  */
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -46,7 +47,11 @@ function ResetPasswordForm() {
       });
       setSuccess(true);
     } catch (err) {
-      if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+      if (err instanceof ApiError && err.status === 422) {
+        // The link is fine; the chosen password was refused by the policy
+        // (too common, all numeric, too similar to the email, …) — say why.
+        setError(err.message);
+      } else if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
         setError(
           "This reset link is invalid or has expired. Request a new one from the login screen."
         );

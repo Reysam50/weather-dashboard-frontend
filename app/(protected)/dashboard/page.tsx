@@ -27,8 +27,38 @@ import TelemetryLogTable from "@/components/dashboard/live/TelemetryLogTable";
  *   card (see components/layout/OfflineCardBody.tsx), not here.
  */
 export default function DashboardPage() {
-  const { selectedStationId } = useStationContext();
-  const { view, extras, status, errorMessage, socketState, refetch } = useLiveTelemetry(selectedStationId);
+  const { selectedStationId, status: stationsStatus, error: stationsError, refetch: refetchStations } = useStationContext();
+  const { view, extras, status, errorMessage, stationSilent, socketState, refetch } = useLiveTelemetry(selectedStationId);
+
+  // No station selected: either the station list is still loading (skeleton
+  // below), failed, or this account simply has no stations yet.
+  if (!selectedStationId && stationsStatus === "error") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+        <span className="material-symbols-outlined text-[36px] text-rose-400">cloud_off</span>
+        <p className="text-white font-semibold">Couldn&apos;t load the station list</p>
+        <p className="text-sm text-slate-400 max-w-sm">{stationsError}</p>
+        <button
+          type="button"
+          onClick={refetchStations}
+          className="mt-2 px-4 py-2 rounded-lg bg-primary-container text-slate-950 font-bold text-sm hover:bg-primary transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+  if (!selectedStationId && stationsStatus === "offline") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+        <span className="material-symbols-outlined text-[36px] text-slate-500">sensors_off</span>
+        <p className="text-white font-semibold">No stations yet</p>
+        <p className="text-sm text-slate-400 max-w-sm">
+          Nothing has been provisioned for your account. A Technical Team member can add stations on the Map screen.
+        </p>
+      </div>
+    );
+  }
 
   // Client-side re-fetch after the initial page load (e.g. switching
   // stations) isn't covered by loading.tsx, which only shows during route
@@ -75,6 +105,13 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {stationSilent && (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 font-mono text-xs">
+          <span className="material-symbols-outlined text-[16px]">sensors_off</span>
+          This station has stopped reporting — showing its last known readings.
+        </div>
+      )}
+
       {socketState !== "open" && (
         <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 font-mono text-xs">
           <span className="material-symbols-outlined text-[16px] animate-pulse">sync_problem</span>

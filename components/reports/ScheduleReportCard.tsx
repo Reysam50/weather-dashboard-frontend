@@ -80,9 +80,9 @@ export default function ScheduleReportCard({
             onChange={(e) => setFrequency(e.target.value as ReportFrequency)}
             className="bg-[#0e1320] border border-border-line rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
           >
-            <option value="daily">Daily at 08:00</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
+            <option value="daily">Daily (00:00 UTC)</option>
+            <option value="weekly">Weekly (Mon 00:00 UTC)</option>
+            <option value="monthly">Monthly (1st 00:00 UTC)</option>
           </select>
 
           <select

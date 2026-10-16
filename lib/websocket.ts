@@ -64,6 +64,7 @@ export class DashboardSocket {
    * another subscriber elsewhere in the app may still want them.
    */
   subscribe(stationId: string, handler: MessageHandler) {
+    if (!stationId) return () => {}; // never send {"subscribe": ""}
     this.subscribedStations.add(stationId);
     this.handlers.add(handler);
     if (this.connectionState === "open") {

@@ -32,6 +32,11 @@ export interface LiveTelemetryResult {
    * request failure (that's "error"). */
   status: FetchStatus;
   errorMessage: string | null;
+  /** True when the station HAS data but has stopped reporting (GET /latest said
+   * status "offline", or the live feed pushed {status: "offline"}). Distinct
+   * from `status === "offline"`, which means it has never reported at all.
+   * Clears itself the moment a new reading arrives. */
+  stationSilent: boolean;
   /** Whether the WebSocket is currently open and subscribed — surfaced so
    * the UI can show "reconnecting…" during a network blip rather than
    * silently going stale with no indication (NFR-3.2). */
@@ -54,6 +59,7 @@ export function useLiveTelemetry(stationId: string): LiveTelemetryResult {
   const [dailyReadings, setDailyReadings] = useState<StationReading[]>([]);
   const [status, setStatus] = useState<FetchStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [stationSilent, setStationSilent] = useState(false);
   const [socketState, setSocketState] = useState<SocketConnectionState>("closed");
   const [refetchToken, setRefetchToken] = useState(0);
 
@@ -63,6 +69,11 @@ export function useLiveTelemetry(stationId: string): LiveTelemetryResult {
   const fetchAllRef = useRef<() => void>(() => {});
 
   useEffect(() => {
+    // The station list loads asynchronously, so the selected id is "" for the
+    // first render(s). Don't hit the API (or subscribe) with an empty id —
+    // that produced 404s on `/telemetry/?…` and a `{"subscribe": ""}` frame.
+    if (!stationId) return;
+
     let cancelled = false;
 
     async function fetchAll() {
@@ -81,6 +92,7 @@ export function useLiveTelemetry(stationId: string): LiveTelemetryResult {
         setHourlyReadings(hourly);
         setDailyReadings(daily);
         setLatest(mapReading(latestReading));
+        setStationSilent(latestReading.status === "offline");
         setStatus("ready");
       } catch (err) {
         if (cancelled) return;
@@ -88,6 +100,7 @@ export function useLiveTelemetry(stationId: string): LiveTelemetryResult {
           // Reachable API, but this station has never reported — a real,
           // distinct state from a broken request.
           setLatest(null);
+          setStationSilent(false);
           setMinuteReadings([]);
           setHourlyReadings([]);
           setDailyReadings([]);
@@ -110,10 +123,16 @@ export function useLiveTelemetry(stationId: string): LiveTelemetryResult {
         const reading = mapReading((msg as ReadingMessage).reading as unknown as Parameters<typeof mapReading>[0]);
         setLatest(reading);
         setMinuteReadings((prev) => [...prev.slice(-(MINUTE_WINDOW - 1)), reading]);
+        // A live reading means the station is reporting: this also lifts a
+        // "never reported" screen on its very first reading, and clears the
+        // silent banner after an outage (previously it stayed "offline"
+        // forever once the offline push had arrived).
+        setStatus("ready");
+        setStationSilent(false);
       } else if ("status" in msg) {
-        if ((msg as StatusMessage).status === "offline") {
-          setStatus("offline");
-        }
+        // The feed says the station went quiet / came back. Keep showing the
+        // last data (with a banner) rather than replacing the whole screen.
+        setStationSilent((msg as StatusMessage).status === "offline");
       }
     });
     dashboardSocket.connect();
@@ -141,6 +160,7 @@ export function useLiveTelemetry(stationId: string): LiveTelemetryResult {
     extras,
     status,
     errorMessage,
+    stationSilent,
     socketState,
     refetch: () => setRefetchToken((n) => n + 1),
   };
